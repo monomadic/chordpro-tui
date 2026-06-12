@@ -1,0 +1,124 @@
+// Command chordpro-tui renders a ChordPro song to the terminal: a colorful
+// title card with chords stacked over lyrics, laid out to fill one screen.
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io"
+	"os"
+
+	"chordpro-tui/internal/chordpro"
+	"chordpro-tui/internal/render"
+	"chordpro-tui/internal/tui"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/term"
+)
+
+func main() {
+	var (
+		printMode = flag.Bool("print", false, "render once to stdout and exit (no interactive TUI)")
+		scroll    = flag.Bool("scroll", false, "start in auto-scrolling teleprompter mode")
+		transpose = flag.Int("transpose", 0, "transpose chords by N semitones")
+		themeName = flag.String("theme", "", "color theme: Mocha, Tokyo Night, Gruvbox, Dracula, Nord")
+		cols      = flag.Int("width", 0, "override terminal width (print mode)")
+		rows      = flag.Int("height", 0, "override terminal height (print mode)")
+	)
+	flag.Usage = usage
+	flag.Parse()
+
+	song, err := readSong(flag.Arg(0))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "chordpro-tui:", err)
+		os.Exit(1)
+	}
+
+	theme := render.ThemeByName(*themeName)
+	interactive := term.IsTerminal(int(os.Stdout.Fd())) && !*printMode
+
+	if !interactive {
+		song = song.Transposed(*transpose)
+		w, h := *cols, *rows
+		if w == 0 || h == 0 {
+			tw, th, err := term.GetSize(int(os.Stdout.Fd()))
+			if err == nil {
+				if w == 0 {
+					w = tw
+				}
+				if h == 0 {
+					h = th
+				}
+			}
+		}
+		if w == 0 {
+			w = 100
+		}
+		if h == 0 {
+			h = 40
+		}
+		fmt.Println(render.Render(song, w, h, theme))
+		return
+	}
+
+	p := tea.NewProgram(
+		tui.New(song, tui.Options{StartScroll: *scroll, Transpose: *transpose, ThemeName: *themeName}),
+		tea.WithAltScreen(),
+	)
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "chordpro-tui:", err)
+		os.Exit(1)
+	}
+}
+
+// readSong loads a song from the given path, or from stdin when path is empty.
+func readSong(path string) (*chordpro.Song, error) {
+	if path == "" {
+		fi, _ := os.Stdin.Stat()
+		if fi.Mode()&os.ModeCharDevice != 0 {
+			return nil, fmt.Errorf("no input: pass a .cho file or pipe one in\n\n%s", usageText())
+		}
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, err
+		}
+		return chordpro.ParseString(string(data))
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return chordpro.Parse(f)
+}
+
+func usage() { fmt.Fprint(os.Stderr, usageText()) }
+
+func usageText() string {
+	return `chordpro-tui — colorful ChordPro renderer for the terminal
+
+Usage:
+  chordpro-tui [flags] <song.cho>
+  chordpro-tui < song.cho
+
+Flags:
+  -print           render once to stdout and exit
+  -scroll          start in auto-scrolling teleprompter mode
+  -transpose N     transpose chords by N semitones
+  -theme NAME      Mocha, Tokyo Night, Gruvbox, Dracula, Nord
+  -width  N        override width (print mode)
+  -height N        override height (print mode)
+
+Keys (interactive):
+  s            cycle view: fit → scroll → sync
+  t            cycle color theme
+  [ / ]        transpose down / up        (fit mode)
+  0            reset transpose
+  space        pause/resume scroll · play/pause sync
+  r            restart sync timeline
+  +/-          scroll speed / sync length (scroll & sync modes)
+  ↑/↓ j/k      scroll a line / seek
+  g/G          jump to top / bottom
+  q            quit
+`
+}
