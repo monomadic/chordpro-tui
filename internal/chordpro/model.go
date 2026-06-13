@@ -1,6 +1,9 @@
 package chordpro
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // Song is a parsed ChordPro song: metadata plus an ordered list of sections.
 type Song struct {
@@ -30,12 +33,25 @@ func (s Song) Meta() [][2]string {
 			out = append(out, [2]string{label, val})
 		}
 	}
-	add("KEY", s.Key)
+	key := s.Key
+	if key != "" && s.TransposeBy != 0 {
+		key += " " + signedSemitones(s.TransposeBy) // e.g. "Bb +3"
+	}
+	add("KEY", key)
 	add("CAPO", s.Capo)
 	add("TEMPO", s.Tempo)
 	add("TIME", s.Time)
 	add("YEAR", s.Year)
 	return out
+}
+
+// signedSemitones formats a non-zero transpose offset with an explicit sign,
+// e.g. +1 or -4.
+func signedSemitones(n int) string {
+	if n > 0 {
+		return "+" + strconv.Itoa(n)
+	}
+	return strconv.Itoa(n) // negative values already carry a leading '-'
 }
 
 // SectionKind classifies a block of the song for styling purposes.

@@ -78,9 +78,9 @@ func buildFooter(song *chordpro.Song, width int, th *Theme, truncated bool) stri
 		left += "   " + status
 	}
 
-	hint := "s view · t theme · [ ] transpose · q quit"
+	hint := "o open · e edit · n/p/r songs · s view · t theme · B bg · q"
 	if truncated {
-		hint = "▾ more — s to scroll · q quit"
+		hint = "▾ more — s scroll · o open · q quit"
 	}
 
 	gap := width - lipgloss.Width(left) - lipgloss.Width(hint) - 2
@@ -91,9 +91,13 @@ func buildFooter(song *chordpro.Song, width int, th *Theme, truncated bool) stri
 	return th.Muted.Render(left) + strings.Repeat(" ", gap) + th.Muted.Render(hint)
 }
 
-// statusBadge describes the active theme and any transpose offset.
+// statusBadge describes the active theme (with its position in the cycle) and
+// any transpose offset.
 func statusBadge(song *chordpro.Song, th *Theme) string {
 	badge := th.Name
+	if i := ThemeIndexByName(th.Name); i >= 0 {
+		badge += " " + strconv.Itoa(i+1) + "/" + strconv.Itoa(len(Palettes))
+	}
 	if n := song.TransposeBy; n != 0 {
 		sign := "+"
 		if n < 0 {

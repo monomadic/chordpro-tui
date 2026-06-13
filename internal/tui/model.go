@@ -2,6 +2,10 @@ package tui
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +30,9 @@ const fps = 30
 // tickMsg drives the animation loop.
 type tickMsg time.Time
 
+// editDoneMsg is delivered after the external $EDITOR exits.
+type editDoneMsg struct{ err error }
+
 // Model is the Bubbletea state for viewing a song.
 type Model struct {
 	base   *chordpro.Song   // untransposed source
@@ -49,6 +56,13 @@ type Model struct {
 	duration time.Duration
 	elapsed  time.Duration
 	running  bool
+
+	// file picker
+	path    string // path of the current song ("" if from stdin)
+	picking bool
+	pick    picker
+
+	bgFill bool // fill the screen with the theme's background color
 }
 
 // Options configure the initial view state.
@@ -56,6 +70,8 @@ type Options struct {
 	StartScroll bool
 	Transpose   int
 	ThemeName   string
+	Path        string // path of the song being shown, for sibling browsing
+	Background  bool   // start with the themed background fill on
 }
 
 // New builds the initial model.
@@ -73,6 +89,8 @@ func New(song *chordpro.Song, opts Options) Model {
 		transp:    clampTranspose(opts.Transpose),
 		linesPerS: speedFromTempo(song.Tempo),
 		duration:  songDuration(song),
+		path:      opts.Path,
+		bgFill:    opts.Background,
 	}
 	m.song = song.Transposed(m.transp)
 	if opts.StartScroll {
@@ -153,6 +171,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tick()
 
+	case editDoneMsg:
+		// The file may have changed; reload it, keeping transpose & theme.
+		m.reloadKeepingState()
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -160,9 +183,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.picking {
+		return m.handlePickerKey(msg)
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c", "esc":
 		return m, tea.Quit
+
+	case "o": // open another song from this directory
+		m.pick = newPicker(m.dir(), m.path)
+		m.picking = true
+		return m, nil
+
+	case "e": // edit the current file in $EDITOR
+		if m.path != "" {
+			return m, editCmd(m.path)
+		}
+	case "n": // next song in this folder
+		m.loadSibling(1)
+	case "p": // previous song in this folder
+		m.loadSibling(-1)
+	case "r": // random song in this folder
+		m.loadRandom()
 
 	case "s": // cycle view mode
 		m.mode = (m.mode + 1) % 3
@@ -177,6 +220,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.tIdx = (m.tIdx + 1) % len(m.themes)
 		m.theme = m.themes[m.tIdx]
 		m.rebuild()
+
+	case "B": // toggle themed background fill
+		m.bgFill = !m.bgFill
 
 	case "]", "+", "=": // transpose up (also speed/duration, see below)
 		if m.mode == modeFit {
@@ -199,8 +245,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.elapsed = 0 // restart from the top if finished
 			}
 		}
-	case "r": // restart sync
-		m.elapsed = 0
 
 	case "down", "j":
 		m.nudge(1)
@@ -242,6 +286,140 @@ func (m *Model) setTranspose(n int) {
 	m.rebuild()
 }
 
+// dir is the directory the picker browses: the current song's folder, or the
+// working directory when the song came from stdin.
+func (m Model) dir() string {
+	if m.path == "" {
+		return "."
+	}
+	return filepath.Dir(m.path)
+}
+
+// handlePickerKey drives the open-file overlay.
+func (m Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "ctrl+g":
+		m.picking = false
+	case "ctrl+c":
+		return m, tea.Quit
+	case "enter":
+		if sel, ok := m.pick.selected(); ok {
+			if err := m.loadSong(sel); err != nil {
+				m.pick.err = err.Error()
+			} else {
+				m.picking = false
+			}
+		}
+	case "up", "ctrl+p", "ctrl+k":
+		m.pick.move(-1)
+	case "down", "ctrl+n", "ctrl+j":
+		m.pick.move(1)
+	case "backspace":
+		m.pick.backspace()
+	case "ctrl+u":
+		m.pick.setQuery("")
+	default:
+		if s := msg.String(); len([]rune(s)) == 1 {
+			m.pick.appendQuery(s)
+		} else if msg.Type == tea.KeySpace {
+			m.pick.appendQuery(" ")
+		}
+	}
+	return m, nil
+}
+
+// loadSong replaces the current song with the one at path, resetting transpose
+// and playback state while keeping the active theme.
+func (m *Model) loadSong(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	song, err := chordpro.Parse(f)
+	if err != nil {
+		return err
+	}
+	m.base = song
+	m.path = path
+	m.transp = 0
+	m.duration = songDuration(song)
+	m.linesPerS = speedFromTempo(song.Tempo)
+	m.elapsed = 0
+	m.offset = 0
+	m.running = false
+	m.rebuild()
+	return nil
+}
+
+// reloadKeepingState re-reads the current file (e.g. after editing) while
+// preserving the transpose offset and theme.
+func (m *Model) reloadKeepingState() {
+	if m.path == "" {
+		return
+	}
+	saved := m.transp
+	if err := m.loadSong(m.path); err == nil {
+		m.transp = saved
+		m.rebuild()
+	}
+}
+
+// loadSibling loads the next (delta=1) or previous (delta=-1) song in the
+// folder, wrapping around.
+func (m *Model) loadSibling(delta int) {
+	paths, _ := chordFilePaths(m.dir())
+	if len(paths) == 0 {
+		return
+	}
+	i := siblingIndex(paths, m.path)
+	if i < 0 {
+		i = 0
+	} else {
+		i = ((i+delta)%len(paths) + len(paths)) % len(paths)
+	}
+	_ = m.loadSong(paths[i])
+}
+
+// loadRandom loads a random song in the folder, avoiding the current one.
+func (m *Model) loadRandom() {
+	paths, _ := chordFilePaths(m.dir())
+	n := len(paths)
+	if n == 0 {
+		return
+	}
+	cur := siblingIndex(paths, m.path)
+	j := rand.Intn(n)
+	if n > 1 && j == cur {
+		j = (j + 1) % n
+	}
+	_ = m.loadSong(paths[j])
+}
+
+// siblingIndex finds path within paths by base name, or -1.
+func siblingIndex(paths []string, path string) int {
+	base := filepath.Base(path)
+	for i, p := range paths {
+		if filepath.Base(p) == base {
+			return i
+		}
+	}
+	return -1
+}
+
+// editCmd launches $EDITOR (or vi) on path, suspending the TUI until it exits.
+func editCmd(path string) tea.Cmd {
+	editor := os.Getenv("EDITOR")
+	if strings.TrimSpace(editor) == "" {
+		editor = "vi"
+	}
+	parts := strings.Fields(editor)
+	args := append(parts[1:], path)
+	return tea.ExecProcess(exec.Command(parts[0], args...), func(err error) tea.Msg {
+		return editDoneMsg{err}
+	})
+}
+
 // nudge scrolls in scroll mode, or seeks the timeline in sync mode.
 func (m *Model) nudge(lines int) {
 	switch m.mode {
@@ -277,14 +455,21 @@ func (m Model) View() string {
 	if m.w == 0 || m.h == 0 {
 		return "loading…"
 	}
-	switch m.mode {
-	case modeScroll:
-		return m.windowView(m.offset, m.scrollStatus())
-	case modeSync:
-		return m.windowView(m.syncOffset(), m.progressBar())
+	var out string
+	switch {
+	case m.picking:
+		out = m.pick.view(m.w, m.h, m.theme)
+	case m.mode == modeScroll:
+		out = m.windowView(m.offset, m.scrollStatus())
+	case m.mode == modeSync:
+		out = m.windowView(m.syncOffset(), m.progressBar())
 	default:
-		return render.Render(m.song, m.w, m.h, m.theme)
+		out = render.Render(m.song, m.w, m.h, m.theme)
 	}
+	if m.bgFill {
+		out = render.ApplyBackground(out, m.w, m.theme.P.Bg)
+	}
+	return out
 }
 
 // syncOffset maps elapsed time to a scroll offset so the last line is reached
@@ -336,7 +521,7 @@ func (m Model) scrollStatus() string {
 		state = "⏸ paused"
 	}
 	left := fmt.Sprintf("%s  %.1f ln/s", state, m.linesPerS)
-	hint := "space pause · +/- speed · s mode · t theme · q quit"
+	hint := "space pause · +/- speed · n/p/r songs · s mode · q"
 	return m.statusBar(left, hint)
 }
 
@@ -352,7 +537,7 @@ func (m Model) progressBar() string {
 	}
 	times := fmt.Sprintf("%s %s / %s", icon, mmss(m.elapsed), mmss(m.duration))
 
-	hint := "space play · r restart · +/- length · s mode"
+	hint := "space play · g restart · +/- length · s mode"
 	// Lay out: [times] [bar....] [hint]
 	reserved := lipgloss.Width(times) + lipgloss.Width(hint) + 4
 	barW := m.w - reserved

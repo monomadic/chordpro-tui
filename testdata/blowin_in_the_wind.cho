@@ -1,0 +1,16 @@
+{title: Blowin' in the Wind}
+{artist: Bob Dylan}
+{key: G}
+{capo: 7}
+{tempo: 90}
+{duration: 2:48}
+
+{start_of_verse: Verse 1}
+How [G]many [C]roads must a [G]man walk [D]down
+Before you [G]call him a [C]man? [D]
+{end_of_verse}
+
+{start_of_chorus}
+The [C]answer my [D]friend is [G]blowin' in the [Em]wind
+The [C]answer is [D]blowin' in the [G]wind
+{end_of_chorus}

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -109,9 +110,9 @@ func TestTransposeKeyChangesView(t *testing.T) {
 	if m.transp != 1 {
 		t.Errorf("transpose = %d, want 1", m.transp)
 	}
-	// Original key was C; +1 should show as Db (flat spelling) somewhere.
-	if !strings.Contains(stripANSI(m.View()), "Db") {
-		t.Error("transposed view does not show Db")
+	// Original key was C; +1 spells the fixed C# (not Db).
+	if !strings.Contains(stripANSI(m.View()), "C#") {
+		t.Error("transposed view does not show C#")
 	}
 }
 
@@ -122,6 +123,64 @@ func TestThemeCycleChanges(t *testing.T) {
 	m = nm.(Model)
 	if m.tIdx == start {
 		t.Error("theme index did not change on 't'")
+	}
+}
+
+const blowinPath = "../../testdata/blowin_in_the_wind.cho"
+
+func TestNextPrevSong(t *testing.T) {
+	s, _ := chordpro.ParseString("{title: A}\n")
+	m := resize(New(s, Options{Path: blowinPath}), 100, 30)
+
+	// Sorted order: blowin, house, scarborough, wagon. 'n' from blowin -> house.
+	nm, _ := m.handleKey(key("n"))
+	m = nm.(Model)
+	if m.base.Title != "House of the Rising Sun" {
+		t.Fatalf("next loaded %q, want House of the Rising Sun", m.base.Title)
+	}
+	// 'p' back to blowin.
+	nm, _ = m.handleKey(key("p"))
+	m = nm.(Model)
+	if m.base.Title != "Blowin' in the Wind" {
+		t.Errorf("prev loaded %q, want Blowin' in the Wind", m.base.Title)
+	}
+}
+
+func TestRandomSongAvoidsCurrent(t *testing.T) {
+	s, _ := chordpro.ParseString("{title: A}\n")
+	m := resize(New(s, Options{Path: blowinPath}), 100, 30)
+	for i := 0; i < 10; i++ {
+		nm, _ := m.handleKey(key("r"))
+		got := nm.(Model)
+		if filepath.Base(got.path) == "blowin_in_the_wind.cho" {
+			t.Fatal("random landed on the current song")
+		}
+		if got.base.Title == "" {
+			t.Fatal("random song has no title")
+		}
+	}
+}
+
+func TestEditDoneReloadsFromDisk(t *testing.T) {
+	s, _ := chordpro.ParseString("{title: A}\n")
+	m := resize(New(s, Options{Path: blowinPath}), 80, 24)
+	nm, _ := m.Update(editDoneMsg{})
+	m = nm.(Model)
+	if m.base.Title != "Blowin' in the Wind" {
+		t.Errorf("editDone did not reload from disk, title = %q", m.base.Title)
+	}
+}
+
+func TestReloadKeepsTranspose(t *testing.T) {
+	s, _ := chordpro.ParseString("{title: A}\n")
+	m := resize(New(s, Options{Path: blowinPath}), 80, 24)
+	(&m).setTranspose(2)
+	(&m).reloadKeepingState()
+	if m.transp != 2 {
+		t.Errorf("transpose lost across reload: %d", m.transp)
+	}
+	if m.base.Title != "Blowin' in the Wind" {
+		t.Errorf("reload read %q, want the file's title", m.base.Title)
 	}
 }
 
