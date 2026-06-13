@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestTransposeChordSharps(t *testing.T) {
+func TestTransposeChord(t *testing.T) {
 	cases := []struct {
 		chord string
 		n     int
@@ -21,49 +21,82 @@ func TestTransposeChordSharps(t *testing.T) {
 		{"G7", 2, "A7"},
 		{"Cmaj7", 5, "Fmaj7"},
 		{"F#m", 1, "Gm"},
-		{"C", 12, "C"},  // octave
-		{"C", -1, "B"},  // wrap down
+		{"C", 12, "C"}, // octave
+		{"C", -1, "B"}, // wrap down
 		{"D", -2, "C"},
 	}
 	for _, c := range cases {
-		if got := transposeChord(c.chord, c.n, false); got != c.want {
+		if got := transposeChord(c.chord, c.n); got != c.want {
 			t.Errorf("transpose(%q, %d) = %q, want %q", c.chord, c.n, got, c.want)
 		}
 	}
 }
 
-func TestTransposeChordFlats(t *testing.T) {
-	if got := transposeChord("C", 1, true); got != "Db" {
-		t.Errorf("got %q, want Db", got)
+// TestTransposeFixedSpelling pins the chosen enharmonic spelling for every
+// accidental pitch class: only Eb and Bb are flats; C#, F#, G# are sharps.
+func TestTransposeFixedSpelling(t *testing.T) {
+	cases := []struct {
+		chord, want string
+	}{
+		{"C", "C#"},  // C#, not Db
+		{"D", "Eb"},  // Eb, not D#
+		{"F", "F#"},  // F#, not Gb
+		{"G", "G#"},  // G#, not Ab
+		{"A", "Bb"},  // Bb, not A#
+		{"Db", "D"},  // up a semitone from Db
+		{"A#", "B"},  // input sharp accidental still parses
+		{"Gb", "G"},  // input flat accidental still parses
 	}
-	if got := transposeChord("G", 1, true); got != "Ab" {
-		t.Errorf("got %q, want Ab", got)
+	for _, c := range cases {
+		if got := transposeChord(c.chord, 1); got != c.want {
+			t.Errorf("transpose(%q, +1) = %q, want %q", c.chord, got, c.want)
+		}
+	}
+	// Inputs already on a black key normalise to the fixed spelling (n=0).
+	for in, want := range map[string]string{"A#": "Bb", "Db": "C#", "Gb": "F#", "D#": "Eb", "Ab": "G#"} {
+		if got := transposeChord(in, 0); got != want {
+			t.Errorf("normalise(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 
 func TestTransposeSlashChord(t *testing.T) {
-	if got := transposeChord("G/B", 2, false); got != "A/C#" {
+	if got := transposeChord("G/B", 2); got != "A/C#" {
 		t.Errorf("got %q, want A/C#", got)
 	}
-	if got := transposeChord("D/F#", 1, false); got != "D#/G" {
-		t.Errorf("got %q, want D#/G", got)
+	if got := transposeChord("D/F#", 1); got != "Eb/G" {
+		t.Errorf("got %q, want Eb/G", got)
+	}
+	// E/G# stays sharp (G# chosen over Ab).
+	if got := transposeChord("E/G#", 0); got != "E/G#" {
+		t.Errorf("got %q, want E/G#", got)
 	}
 }
 
 func TestTransposeNonChordUnchanged(t *testing.T) {
 	for _, c := range []string{"", "N.C.", "%", "x4"} {
-		if got := transposeChord(c, 3, false); got != c {
+		if got := transposeChord(c, 3); got != c {
 			t.Errorf("transpose(%q) = %q, want unchanged", c, got)
 		}
 	}
 }
 
-func TestTransposeKeyPicksFlats(t *testing.T) {
-	// C up one semitone in a flat-leaning target spells with flats.
-	if got := TransposeKey("C", 1); got != "Db" {
-		t.Errorf("TransposeKey(C, 1) = %q, want Db", got)
+func TestTransposeKey(t *testing.T) {
+	cases := map[string]string{
+		"C":  "C#", // +1
+		"A":  "Bb", // wraps to the fixed flat
+		"D":  "Eb",
+		"G":  "G#",
+		"F":  "F#",
 	}
-	// G up two -> A (sharp side).
+	for in, want := range cases {
+		if got := TransposeKey(in, 1); got != want {
+			t.Errorf("TransposeKey(%q, 1) = %q, want %q", in, got, want)
+		}
+	}
+	if got := TransposeKey("Am", 3); got != "Cm" {
+		t.Errorf("TransposeKey(Am, 3) = %q, want Cm", got)
+	}
 	if got := TransposeKey("G", 2); got != "A" {
 		t.Errorf("TransposeKey(G, 2) = %q, want A", got)
 	}

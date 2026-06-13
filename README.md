@@ -50,16 +50,20 @@ chordpro-tui < testdata/wagon_wheel.cho
 
 | Key              | Action                                            |
 | ---------------- | ------------------------------------------------- |
+| `o`              | open another song from this folder (fuzzy finder) |
+| `e`              | edit the current file in `$EDITOR`                |
+| `n` / `p`        | load next / previous song in the folder           |
+| `r`              | load a random song in the folder                  |
 | `s`              | cycle view mode: **fit → scroll → sync**          |
 | `t`              | cycle color theme                                 |
+| `B`              | toggle themed background fill                      |
 | `[` / `]`        | transpose down / up (fit mode)                    |
 | `0`              | reset transpose                                   |
 | `space`          | pause/resume scroll · play/pause sync             |
-| `r`              | restart the sync timeline                         |
 | `+` / `-`        | scroll speed (scroll) · song length (sync)        |
 | `↑`/`↓`, `j`/`k` | scroll a line / seek the timeline                 |
 | `f`/`b`, PgDn/PgUp | scroll a page                                   |
-| `g` / `G`        | jump to top / bottom                              |
+| `g` / `G`        | jump to top / bottom (`g` restarts sync)          |
 | `q`              | quit                                              |
 
 ### View modes
@@ -73,11 +77,39 @@ chordpro-tui < testdata/wagon_wheel.cho
 
 ### Transpose & themes
 
-`[` / `]` shift every chord (and the key) by a semitone, choosing the
-conventional spelling for the resulting key (e.g. transposing into B♭ spells
-flats, into A spells sharps); slash-chord bass notes move too. `t` cycles the
-bundled themes — **Mocha, Tokyo Night, Gruvbox, Dracula, Nord** — and the
-footer shows the active theme and transpose offset.
+`[` / `]` shift every chord (and the key) by a semitone; slash-chord bass notes
+move too. Accidentals use the spelling most commonly seen on lead sheets, fixed
+per note rather than by key: **E♭** and **B♭** are flats, while **C♯**, **F♯**
+and **G♯** are sharps (so you get B♭ over A♯ but F♯ over G♭, and E/G♯ stays
+sharp). The current key pill shows the transpose offset (e.g. `Bb +3`). `t`
+cycles the bundled themes — **Mocha, Tokyo Night, Gruvbox, Dracula, Nord** plus
+the neon set **Synthwave, Cyberpunk, Laser, Vapor** — and the footer shows the
+active theme (with its position in the cycle, e.g. `Synthwave 6/9`).
+
+`B` toggles a **themed background fill** (also `-bg`): instead of the terminal's
+default background, the whole screen is painted with the theme's background
+color, with chord and metadata pills still standing out on top. Best with a
+truecolor terminal.
+
+To preview every theme at once, run `scripts/gallery.sh` (add `--bg` to see the
+backgrounds, pass a song path to use your own): it renders the song in each
+theme back-to-back with colors forced on.
+
+### Opening, browsing & editing songs
+
+`o` opens a fuzzy finder over every ChordPro file
+(`.cho .chopro .chordpro .crd .pro .cp`) in the current song's folder. Each row
+shows the **title, artist, and a compact metadata column** (key · capo · tempo ·
+year) in separate colored columns (no file extensions); type to filter by title
+(matched characters are highlighted), `↑`/`↓` to move, `enter` to open, `esc` to
+cancel.
+
+Without opening the finder you can also jump straight between songs in the
+folder: `n` / `p` for next / previous (alphabetical, wrapping) and `r` for a
+random pick. Switching songs resets transpose and playback but keeps your theme.
+
+`e` opens the current file in `$EDITOR` (falling back to `vi`); when you quit the
+editor the song is reloaded automatically, preserving your transpose and theme.
 
 ## Layout behaviour
 
@@ -105,7 +137,8 @@ source comments.
 main.go                      CLI entry point, TTY detection, flags
 internal/chordpro/           parser + song model + transpose
 internal/render/             themes, chord/lyric alignment, column packing
-internal/tui/                Bubbletea model (fit / scroll / sync modes)
+internal/tui/                Bubbletea model (fit / scroll / sync) + file picker
+scripts/gallery.sh           render the sample song in every theme
 testdata/                    example songs
 ```
 

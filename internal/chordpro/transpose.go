@@ -2,43 +2,24 @@ package chordpro
 
 import "strings"
 
-var (
-	sharpNames = []string{"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
-	flatNames  = []string{"C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"}
-	// semitone offset of each natural note from C
-	naturals = map[byte]int{'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
-)
-
-// pcToFlat encodes, per pitch class (0=C..11=B), whether the conventional major
-// key at that pitch is spelled with flats. This drives enharmonic choices so a
-// transpose into a black key lands on the usual spelling (Db not C#, Ab not G#),
-// while F# (6 sharps) wins over Gb.
-var pcToFlat = [12]bool{
-	false, // C
-	true,  // Db
-	false, // D
-	true,  // Eb
-	false, // E
-	true,  // F  (1 flat)
-	false, // F#
-	false, // G
-	true,  // Ab
-	false, // A
-	true,  // Bb
-	false, // B
+// noteNames is the fixed enharmonic spelling used for every pitch class
+// (0=C..11=B), chosen for the form most commonly seen on lead sheets rather
+// than the strictly key-correct one. Only E♭ and B♭ are flats; C♯, F♯ and G♯
+// are sharps. Spelling therefore does not depend on the key.
+var noteNames = [12]string{
+	"C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B",
 }
 
+// naturals is the semitone offset of each natural note from C.
+var naturals = map[byte]int{'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
+
 // Transposed returns a deep copy of the song with every chord (and its key)
-// shifted by n semitones. n may be any integer; the spelling (sharps vs flats)
-// follows the resulting key signature. The copy records n in TransposeBy.
+// shifted by n semitones. n may be any integer. The copy records n in
+// TransposeBy.
 func (s *Song) Transposed(n int) *Song {
 	out := *s // shallow copy of scalar metadata
 	out.TransposeBy = n
-	if n%12 == 0 && n != 0 {
-		// A whole number of octaves: chords are unchanged, but still record it.
-	}
 	out.Key = TransposeKey(s.Key, n)
-	flats := keyPrefersFlats(out.Key)
 
 	out.Sections = make([]Section, len(s.Sections))
 	for i, sec := range s.Sections {
@@ -49,7 +30,7 @@ func (s *Song) Transposed(n int) *Song {
 			if len(ln.Segments) > 0 {
 				nln.Segments = make([]Segment, len(ln.Segments))
 				for k, seg := range ln.Segments {
-					seg.Chord = transposeChord(seg.Chord, n, flats)
+					seg.Chord = transposeChord(seg.Chord, n)
 					nln.Segments[k] = seg
 				}
 			}
@@ -61,45 +42,47 @@ func (s *Song) Transposed(n int) *Song {
 }
 
 // TransposeKey shifts a key name (e.g. "G", "Am", "Bb") by n semitones,
-// preserving a trailing minor "m" and choosing the conventional spelling.
+// preserving a trailing minor "m".
 func TransposeKey(key string, n int) string {
 	root, minor, ok := splitKey(key)
 	if !ok {
 		return key
 	}
-	pc, ok := rootPC(root)
+	name, ok := transposeRoot(root, n)
 	if !ok {
 		return key
 	}
-	np := mod12(pc + n)
-	flats := keyFlats(np, minor)
-	if flats {
-		return flatNames[np] + minorSuffix(minor)
-	}
-	return sharpNames[np] + minorSuffix(minor)
+	return name + minorSuffix(minor)
 }
 
 // transposeChord shifts a single chord token, including any slash-bass note.
-func transposeChord(chord string, n int, flats bool) string {
+func transposeChord(chord string, n int) string {
 	if chord == "" {
 		return chord
 	}
 	// Slash chords: transpose both sides.
 	if i := strings.IndexByte(chord, '/'); i >= 0 {
-		left := transposeChord(chord[:i], n, flats)
-		right := transposeChord(chord[i+1:], n, flats)
-		return left + "/" + right
+		return transposeChord(chord[:i], n) + "/" + transposeChord(chord[i+1:], n)
 	}
 
 	rootLen := rootLength(chord)
 	if rootLen == 0 {
 		return chord // not a recognisable chord (e.g. "N.C.")
 	}
-	root, ok := transposeRoot(chord[:rootLen], n, flats)
+	name, ok := transposeRoot(chord[:rootLen], n)
 	if !ok {
 		return chord
 	}
-	return root + chord[rootLen:]
+	return name + chord[rootLen:]
+}
+
+// transposeRoot maps a root spelling to its shifted spelling via noteNames.
+func transposeRoot(root string, n int) (string, bool) {
+	pc, ok := rootPC(root)
+	if !ok {
+		return "", false
+	}
+	return noteNames[mod12(pc+n)], true
 }
 
 // rootLength returns the length of the leading root note (1 or 2 bytes), or 0
@@ -115,53 +98,6 @@ func rootLength(s string) int {
 		return 2
 	}
 	return 1
-}
-
-// transposeRoot maps a root spelling to its shifted spelling.
-func transposeRoot(root string, n int, flats bool) (string, bool) {
-	if root == "" {
-		return "", false
-	}
-	base, ok := naturals[root[0]]
-	if !ok {
-		return "", false
-	}
-	if len(root) > 1 {
-		switch root[1] {
-		case '#':
-			base++
-		case 'b':
-			base--
-		}
-	}
-	idx := ((base+n)%12 + 12) % 12
-	if flats {
-		return flatNames[idx], true
-	}
-	return sharpNames[idx], true
-}
-
-// keyPrefersFlats reports whether a key signature is conventionally written
-// with flats, used to pick chord spellings within that key.
-func keyPrefersFlats(key string) bool {
-	root, minor, ok := splitKey(key)
-	if !ok {
-		return false
-	}
-	pc, ok := rootPC(root)
-	if !ok {
-		return false
-	}
-	return keyFlats(pc, minor)
-}
-
-// keyFlats reports whether the key at pitch class pc (relative major for minor
-// keys) is spelled with flats.
-func keyFlats(pc int, minor bool) bool {
-	if minor {
-		pc = mod12(pc + 3) // relative major
-	}
-	return pcToFlat[pc]
 }
 
 // rootPC returns the chromatic pitch class (0..11) of a root spelling.

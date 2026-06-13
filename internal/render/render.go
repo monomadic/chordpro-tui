@@ -1,6 +1,8 @@
 package render
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -66,8 +68,11 @@ func Render(song *chordpro.Song, width, height int, th *Theme) string {
 		bodyLines = bodyLines[:availH]
 		truncated = true
 	} else if pad := availH - len(bodyLines); pad > 0 {
-		// Push the body down so its last line sits just above the footer.
-		bodyLines = append(make([]string, pad), bodyLines...)
+		// Center the body vertically, padding top and bottom so the region
+		// still fills availH and the footer stays pinned to the bottom.
+		top := pad / 2
+		bodyLines = append(make([]string, top), bodyLines...)
+		bodyLines = append(bodyLines, make([]string, pad-top)...)
 	}
 	body = strings.Join(bodyLines, "\n")
 
@@ -106,7 +111,7 @@ func buildBlocks(song *chordpro.Song, th *Theme) []block {
 // stacked above the lyric row, a comment, or a verbatim tab row.
 func renderLine(ln chordpro.Line, kind chordpro.SectionKind, th *Theme) []string {
 	if ln.Comment != "" {
-		return []string{th.Comment.Render("✦ " + ln.Comment)}
+		return []string{th.Comment.Render(ln.Comment)}
 	}
 	if kind == chordpro.KindTab {
 		return []string{th.Tab.Render(ln.PlainText())}
@@ -357,6 +362,41 @@ func withGutters(cols []string) []string {
 }
 
 func runeLen(s string) int { return utf8.RuneCountInString(s) }
+
+// ApplyBackground tints every cell of an already-rendered screen with bg,
+// padding each line out to width w. It re-asserts the background after every
+// ANSI reset, so foreground-styled text keeps the themed fill while element
+// backgrounds (chord/metadata pills) still paint over it. Returns the input
+// unchanged if bg is not a parseable "#rrggbb" color.
+func ApplyBackground(screen string, w int, bg lipgloss.Color) string {
+	r, g, b, ok := hexRGB(string(bg))
+	if !ok {
+		return screen
+	}
+	set := fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b)
+	const reset = "\x1b[0m"
+	lines := strings.Split(screen, "\n")
+	for i, ln := range lines {
+		if pad := w - lipgloss.Width(ln); pad > 0 {
+			ln += strings.Repeat(" ", pad)
+		}
+		lines[i] = set + strings.ReplaceAll(ln, reset, reset+set) + reset
+	}
+	return strings.Join(lines, "\n")
+}
+
+// hexRGB parses a "#rrggbb" color into 8-bit components.
+func hexRGB(s string) (r, g, b int, ok bool) {
+	s = strings.TrimPrefix(s, "#")
+	if len(s) != 6 {
+		return 0, 0, 0, false
+	}
+	v, err := strconv.ParseUint(s, 16, 32)
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	return int(v >> 16), int(v>>8) & 0xff, int(v) & 0xff, true
+}
 
 // RenderLong lays the entire song out as a single tall column (header on top,
 // every section stacked). It is the content the scroll mode windows over, so it

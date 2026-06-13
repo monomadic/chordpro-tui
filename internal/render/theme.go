@@ -10,6 +10,7 @@ import (
 // easiest way to reskin the renderer.
 type Palette struct {
 	Name     string         // display name, e.g. "Mocha"
+	Bg       lipgloss.Color // full-screen background (used when bg-fill is on)
 	Chord    lipgloss.Color // inline chord names
 	ChordBg  lipgloss.Color // background behind each chord pill
 	Lyric    lipgloss.Color // sung text
@@ -29,12 +30,13 @@ type Palette struct {
 // lavender-white lyrics, with a mauve chorus accent.
 var CatppuccinMocha = Palette{
 	Name:     "Mocha",
+	Bg:       lipgloss.Color("#1e1e2e"),
 	Chord:    lipgloss.Color("#5cf0ff"), // neon blue
 	ChordBg:  lipgloss.Color("#093247"), // deep teal-navy
 	Lyric:    lipgloss.Color("#cdd6f4"),
 	Title:    lipgloss.Color("#89b4fa"),
 	Subtitle: lipgloss.Color("#f9e2af"),
-	Section:  lipgloss.Color("#a6e3a1"),
+	Section:  lipgloss.Color("#00FF88"),
 	Chorus:   lipgloss.Color("#cba6f7"),
 	Comment:  lipgloss.Color("#94e2d5"),
 	Tab:      lipgloss.Color("#89dceb"),
@@ -47,6 +49,7 @@ var CatppuccinMocha = Palette{
 // TokyoNight: cool blue night palette with a cyan chord glow.
 var TokyoNight = Palette{
 	Name:     "Tokyo Night",
+	Bg:       lipgloss.Color("#1a1b26"),
 	Chord:    lipgloss.Color("#7dcfff"),
 	ChordBg:  lipgloss.Color("#1f2a44"),
 	Lyric:    lipgloss.Color("#c0caf5"),
@@ -65,6 +68,7 @@ var TokyoNight = Palette{
 // Gruvbox: warm retro palette, amber chords on a dark brown pill.
 var Gruvbox = Palette{
 	Name:     "Gruvbox",
+	Bg:       lipgloss.Color("#282828"),
 	Chord:    lipgloss.Color("#fe8019"),
 	ChordBg:  lipgloss.Color("#3c2a21"),
 	Lyric:    lipgloss.Color("#ebdbb2"),
@@ -83,6 +87,7 @@ var Gruvbox = Palette{
 // Dracula: vivid purple-and-pink dark palette.
 var Dracula = Palette{
 	Name:     "Dracula",
+	Bg:       lipgloss.Color("#282a36"),
 	Chord:    lipgloss.Color("#8be9fd"),
 	ChordBg:  lipgloss.Color("#22243a"),
 	Lyric:    lipgloss.Color("#f8f8f2"),
@@ -101,6 +106,7 @@ var Dracula = Palette{
 // Nord: muted arctic blues with a frost chord pill.
 var Nord = Palette{
 	Name:     "Nord",
+	Bg:       lipgloss.Color("#2e3440"),
 	Chord:    lipgloss.Color("#88c0d0"),
 	ChordBg:  lipgloss.Color("#2e3440"),
 	Lyric:    lipgloss.Color("#eceff4"),
@@ -116,26 +122,105 @@ var Nord = Palette{
 	Muted:    lipgloss.Color("#616e88"),
 }
 
+// Synthwave: outrun neon — cyan chords and hot-magenta accents on deep indigo.
+var Synthwave = Palette{
+	Name:     "Synthwave",
+	Bg:       lipgloss.Color("#190a2a"),
+	Chord:    lipgloss.Color("#00eaff"),
+	ChordBg:  lipgloss.Color("#2a0e5a"),
+	Lyric:    lipgloss.Color("#ece3ff"),
+	Title:    lipgloss.Color("#ff3caf"),
+	Subtitle: lipgloss.Color("#00eaff"),
+	Section:  lipgloss.Color("#ffd000"),
+	Chorus:   lipgloss.Color("#b14bff"),
+	Comment:  lipgloss.Color("#4dffd1"),
+	Tab:      lipgloss.Color("#00eaff"),
+	Border:   lipgloss.Color("#ff3caf"),
+	PillBg:   lipgloss.Color("#2a0e5a"),
+	PillFg:   lipgloss.Color("#ffffff"),
+	Muted:    lipgloss.Color("#8a6bc4"),
+}
+
+// Cyberpunk: electric yellow chords with magenta/cyan accents on near-black.
+var Cyberpunk = Palette{
+	Name:     "Cyberpunk",
+	Bg:       lipgloss.Color("#0a0a12"),
+	Chord:    lipgloss.Color("#f6ff00"),
+	ChordBg:  lipgloss.Color("#1b1b00"),
+	Lyric:    lipgloss.Color("#e8faff"),
+	Title:    lipgloss.Color("#ff007a"),
+	Subtitle: lipgloss.Color("#00f0ff"),
+	Section:  lipgloss.Color("#00ffa3"),
+	Chorus:   lipgloss.Color("#ff007a"),
+	Comment:  lipgloss.Color("#c77dff"),
+	Tab:      lipgloss.Color("#00f0ff"),
+	Border:   lipgloss.Color("#f6ff00"),
+	PillBg:   lipgloss.Color("#14141f"),
+	PillFg:   lipgloss.Color("#f6ff00"),
+	Muted:    lipgloss.Color("#5a5a72"),
+}
+
+// Laser: acid-lime chords against magenta and teal on dark green-black.
+var Laser = Palette{
+	Name:     "Laser",
+	Bg:       lipgloss.Color("#08160a"),
+	Chord:    lipgloss.Color("#aaff00"),
+	ChordBg:  lipgloss.Color("#0d2600"),
+	Lyric:    lipgloss.Color("#eafff0"),
+	Title:    lipgloss.Color("#ff00e6"),
+	Subtitle: lipgloss.Color("#00ffcc"),
+	Section:  lipgloss.Color("#ffe600"),
+	Chorus:   lipgloss.Color("#ff00e6"),
+	Comment:  lipgloss.Color("#00ffcc"),
+	Tab:      lipgloss.Color("#aaff00"),
+	Border:   lipgloss.Color("#ff00e6"),
+	PillBg:   lipgloss.Color("#122100"),
+	PillFg:   lipgloss.Color("#eafff0"),
+	Muted:    lipgloss.Color("#6f8a5c"),
+}
+
+// Vapor: pastel-neon vaporwave — pink and aqua on twilight purple.
+var Vapor = Palette{
+	Name:     "Vapor",
+	Bg:       lipgloss.Color("#1c1230"),
+	Chord:    lipgloss.Color("#ff6ad5"),
+	ChordBg:  lipgloss.Color("#241734"),
+	Lyric:    lipgloss.Color("#f4e9ff"),
+	Title:    lipgloss.Color("#8c9eff"),
+	Subtitle: lipgloss.Color("#94d0ff"),
+	Section:  lipgloss.Color("#a0ffe6"),
+	Chorus:   lipgloss.Color("#ff6ad5"),
+	Comment:  lipgloss.Color("#c8a2ff"),
+	Tab:      lipgloss.Color("#94d0ff"),
+	Border:   lipgloss.Color("#c47fd5"),
+	PillBg:   lipgloss.Color("#241734"),
+	PillFg:   lipgloss.Color("#f4e9ff"),
+	Muted:    lipgloss.Color("#7c6f9c"),
+}
+
 // Palettes is the ordered set the UI cycles through.
-var Palettes = []Palette{CatppuccinMocha, TokyoNight, Gruvbox, Dracula, Nord}
+var Palettes = []Palette{
+	CatppuccinMocha, TokyoNight, Gruvbox, Dracula, Nord,
+	Synthwave, Cyberpunk, Laser, Vapor,
+}
 
 // Theme is the set of compiled lipgloss styles used while rendering.
 type Theme struct {
 	Name string
 	P    Palette
 
-	Chord    lipgloss.Style
-	Lyric    lipgloss.Style
-	Title    lipgloss.Style
-	Subtitle lipgloss.Style
-	Section  lipgloss.Style
-	Comment  lipgloss.Style
-	Tab      lipgloss.Style
-	Frame    lipgloss.Style
-	PillKey  lipgloss.Style
-	PillVal  lipgloss.Style
+	Chord     lipgloss.Style
+	Lyric     lipgloss.Style
+	Title     lipgloss.Style
+	Subtitle  lipgloss.Style
+	Section   lipgloss.Style
+	Comment   lipgloss.Style
+	Tab       lipgloss.Style
+	Frame     lipgloss.Style
+	PillKey   lipgloss.Style
+	PillVal   lipgloss.Style
 	ChorusBar lipgloss.Style
-	Muted    lipgloss.Style
+	Muted     lipgloss.Style
 }
 
 // NewTheme compiles a Palette into ready-to-use styles.

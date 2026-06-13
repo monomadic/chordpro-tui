@@ -13,6 +13,8 @@ import (
 	"chordpro-tui/internal/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"golang.org/x/term"
 )
 
@@ -21,7 +23,8 @@ func main() {
 		printMode = flag.Bool("print", false, "render once to stdout and exit (no interactive TUI)")
 		scroll    = flag.Bool("scroll", false, "start in auto-scrolling teleprompter mode")
 		transpose = flag.Int("transpose", 0, "transpose chords by N semitones")
-		themeName = flag.String("theme", "", "color theme: Mocha, Tokyo Night, Gruvbox, Dracula, Nord")
+		themeName = flag.String("theme", "", "color theme: Mocha, Tokyo Night, Gruvbox, Dracula, Nord, Synthwave, Cyberpunk, Laser, Vapor")
+		bg        = flag.Bool("bg", false, "fill the screen with the theme's background color")
 		cols      = flag.Int("width", 0, "override terminal width (print mode)")
 		rows      = flag.Int("height", 0, "override terminal height (print mode)")
 	)
@@ -38,6 +41,10 @@ func main() {
 	interactive := term.IsTerminal(int(os.Stdout.Fd())) && !*printMode
 
 	if !interactive {
+		if os.Getenv("CHORDPRO_TUI_FORCE_COLOR") != "" {
+			lipgloss.SetColorProfile(termenv.TrueColor)
+			lipgloss.SetHasDarkBackground(true)
+		}
 		song = song.Transposed(*transpose)
 		w, h := *cols, *rows
 		if w == 0 || h == 0 {
@@ -57,12 +64,22 @@ func main() {
 		if h == 0 {
 			h = 40
 		}
-		fmt.Println(render.Render(song, w, h, theme))
+		out := render.Render(song, w, h, theme)
+		if *bg {
+			out = render.ApplyBackground(out, w, theme.P.Bg)
+		}
+		fmt.Println(out)
 		return
 	}
 
 	p := tea.NewProgram(
-		tui.New(song, tui.Options{StartScroll: *scroll, Transpose: *transpose, ThemeName: *themeName}),
+		tui.New(song, tui.Options{
+			StartScroll: *scroll,
+			Transpose:   *transpose,
+			ThemeName:   *themeName,
+			Path:        flag.Arg(0),
+			Background:  *bg,
+		}),
 		tea.WithAltScreen(),
 	)
 	if _, err := p.Run(); err != nil {
@@ -105,17 +122,24 @@ Flags:
   -print           render once to stdout and exit
   -scroll          start in auto-scrolling teleprompter mode
   -transpose N     transpose chords by N semitones
-  -theme NAME      Mocha, Tokyo Night, Gruvbox, Dracula, Nord
+  -theme NAME      Mocha, Tokyo Night, Gruvbox, Dracula, Nord,
+                   Synthwave, Cyberpunk, Laser, Vapor
+  -bg              fill the screen with the theme's background color
   -width  N        override width (print mode)
   -height N        override height (print mode)
 
 Keys (interactive):
+  o            open another song from this folder (fuzzy finder)
+  e            edit the current file in $EDITOR
+  n / p        load next / previous song in the folder
+  r            load a random song in the folder
   s            cycle view: fit → scroll → sync
   t            cycle color theme
+  B            toggle themed background fill
   [ / ]        transpose down / up        (fit mode)
   0            reset transpose
   space        pause/resume scroll · play/pause sync
-  r            restart sync timeline
+  g            restart sync timeline (jump to top)
   +/-          scroll speed / sync length (scroll & sync modes)
   ↑/↓ j/k      scroll a line / seek
   g/G          jump to top / bottom

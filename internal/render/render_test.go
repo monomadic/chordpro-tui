@@ -5,7 +5,33 @@ import (
 	"testing"
 
 	"chordpro-tui/internal/chordpro"
+
+	"github.com/charmbracelet/lipgloss"
 )
+
+func TestApplyBackground(t *testing.T) {
+	out := ApplyBackground("ab\ncd", 4, lipgloss.Color("#102030")) // 16,32,48
+	for _, ln := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(ln, "\x1b[48;2;16;32;48m") {
+			t.Errorf("line missing bg prefix: %q", ln)
+		}
+		if !strings.HasSuffix(ln, "\x1b[0m") {
+			t.Errorf("line missing reset suffix: %q", ln)
+		}
+		if lipgloss.Width(ln) != 4 {
+			t.Errorf("line width = %d, want 4 (padded)", lipgloss.Width(ln))
+		}
+	}
+	// A reset inside the content re-asserts the background after it.
+	tinted := ApplyBackground("\x1b[0mx", 2, lipgloss.Color("#000000"))
+	if strings.Count(tinted, "\x1b[48;2;0;0;0m") < 2 {
+		t.Errorf("background not re-asserted after inner reset: %q", tinted)
+	}
+	// An unparseable color is a no-op.
+	if got := ApplyBackground("ab", 4, lipgloss.Color("nope")); got != "ab" {
+		t.Errorf("bad color should be a no-op, got %q", got)
+	}
+}
 
 func TestAlignChords(t *testing.T) {
 	segs := []chordpro.Segment{
