@@ -116,6 +116,24 @@ func TestTransposeKeyChangesView(t *testing.T) {
 	}
 }
 
+func TestHelpOverlayOpensAndDismisses(t *testing.T) {
+	m := resize(mustModel(t), 80, 30)
+	nm, _ := m.handleKey(key("?"))
+	m = nm.(Model)
+	if !m.helping {
+		t.Fatal("? did not open the help overlay")
+	}
+	if !strings.Contains(stripANSI(m.View()), "Keyboard shortcuts") {
+		t.Error("help view missing its title")
+	}
+	// Any key dismisses it.
+	nm, _ = m.handleKey(key("x"))
+	m = nm.(Model)
+	if m.helping {
+		t.Error("help overlay did not close")
+	}
+}
+
 func TestThemeCycleChanges(t *testing.T) {
 	m := resize(mustModel(t), 80, 24)
 	start := m.tIdx

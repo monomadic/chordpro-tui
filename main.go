@@ -31,7 +31,12 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
-	song, err := readSong(flag.Arg(0))
+	inputPath, err := resolveInput(flag.Arg(0))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "chordpro-tui:", err)
+		os.Exit(1)
+	}
+	song, err := readSong(inputPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "chordpro-tui:", err)
 		os.Exit(1)
@@ -77,7 +82,7 @@ func main() {
 			StartScroll: *scroll,
 			Transpose:   *transpose,
 			ThemeName:   *themeName,
-			Path:        flag.Arg(0),
+			Path:        inputPath,
 			Background:  *bg,
 		}),
 		tea.WithAltScreen(),
@@ -86,6 +91,23 @@ func main() {
 		fmt.Fprintln(os.Stderr, "chordpro-tui:", err)
 		os.Exit(1)
 	}
+}
+
+// resolveInput turns a CLI argument into a concrete song path. A directory
+// resolves to the most recently modified ChordPro file inside it; an empty
+// argument is left as-is (stdin).
+func resolveInput(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return path, nil // let readSong surface the open error
+	}
+	if fi.IsDir() {
+		return tui.NewestSong(path)
+	}
+	return path, nil
 }
 
 // readSong loads a song from the given path, or from stdin when path is empty.
@@ -116,6 +138,7 @@ func usageText() string {
 
 Usage:
   chordpro-tui [flags] <song.cho>
+  chordpro-tui [flags] <folder>     # opens the newest song in the folder
   chordpro-tui < song.cho
 
 Flags:
@@ -129,6 +152,7 @@ Flags:
   -height N        override height (print mode)
 
 Keys (interactive):
+  ?            show all keyboard shortcuts
   o            open another song from this folder (fuzzy finder)
   e            edit the current file in $EDITOR
   n / p        load next / previous song in the folder

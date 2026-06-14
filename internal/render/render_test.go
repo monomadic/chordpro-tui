@@ -33,6 +33,20 @@ func TestApplyBackground(t *testing.T) {
 	}
 }
 
+func TestTidyBlanks(t *testing.T) {
+	in := []string{"", "a", "", "", "b", "", ""}
+	got := tidyBlanks(in)
+	want := []string{"a", "", "b"}
+	if len(got) != len(want) {
+		t.Fatalf("tidyBlanks = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func TestAlignChords(t *testing.T) {
 	segs := []chordpro.Segment{
 		{Chord: "C", Text: "Hello "},

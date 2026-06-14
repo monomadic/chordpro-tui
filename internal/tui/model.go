@@ -35,12 +35,12 @@ type editDoneMsg struct{ err error }
 
 // Model is the Bubbletea state for viewing a song.
 type Model struct {
-	base   *chordpro.Song   // untransposed source
-	song   *chordpro.Song   // current (transposed) view
-	themes []*render.Theme  // cycle order
-	tIdx   int              // active theme index
-	theme  *render.Theme    // == themes[tIdx]
-	transp int              // transpose in semitones
+	base   *chordpro.Song  // untransposed source
+	song   *chordpro.Song  // current (transposed) view
+	themes []*render.Theme // cycle order
+	tIdx   int             // active theme index
+	theme  *render.Theme   // == themes[tIdx]
+	transp int             // transpose in semitones
 
 	w, h int
 	mode mode
@@ -62,7 +62,8 @@ type Model struct {
 	picking bool
 	pick    picker
 
-	bgFill bool // fill the screen with the theme's background color
+	helping bool // showing the keyboard-shortcut overlay
+	bgFill  bool // fill the screen with the theme's background color
 
 	chords bool // showing the chord-shapes sheet overlay
 }
@@ -191,10 +192,21 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.chords {
 		return m.handleChordsKey(msg)
 	}
+	if m.helping {
+		// Any key dismisses the help overlay (ctrl+c still quits).
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		m.helping = false
+		return m, nil
+	}
 
 	switch msg.String() {
 	case "q", "ctrl+c", "esc":
 		return m, tea.Quit
+
+	case "?": // keyboard-shortcut help
+		m.helping = true
 
 	case "o": // open another song from this directory
 		m.pick = newPicker(m.dir(), m.path)
@@ -491,6 +503,8 @@ func (m Model) View() string {
 	switch {
 	case m.picking:
 		out = m.pick.view(m.w, m.h, m.theme)
+	case m.helping:
+		out = helpView(m.w, m.h, m.theme)
 	case m.chords:
 		out = render.RenderChordSheet(m.song, m.w, m.h, m.theme)
 	case m.mode == modeScroll:
@@ -555,7 +569,7 @@ func (m Model) scrollStatus() string {
 		state = "⏸ paused"
 	}
 	left := fmt.Sprintf("%s  %.1f ln/s", state, m.linesPerS)
-	hint := "space pause · +/- speed · n/p/r songs · s mode · q"
+	hint := "space pause · +/- speed · s mode · ? help · q"
 	return m.statusBar(left, hint)
 }
 
@@ -571,7 +585,7 @@ func (m Model) progressBar() string {
 	}
 	times := fmt.Sprintf("%s %s / %s", icon, mmss(m.elapsed), mmss(m.duration))
 
-	hint := "space play · g restart · +/- length · s mode"
+	hint := "space play · g restart · +/- length · ? help"
 	// Lay out: [times] [bar....] [hint]
 	reserved := lipgloss.Width(times) + lipgloss.Width(hint) + 4
 	barW := m.w - reserved

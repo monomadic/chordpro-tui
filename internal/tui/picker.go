@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,6 +18,30 @@ import (
 var chordExts = map[string]bool{
 	".cho": true, ".chopro": true, ".chordpro": true,
 	".crd": true, ".pro": true, ".cp": true,
+}
+
+// NewestSong returns the most recently modified ChordPro file in dir.
+func NewestSong(dir string) (string, error) {
+	paths, err := chordFilePaths(dir)
+	if err != nil {
+		return "", err
+	}
+	if len(paths) == 0 {
+		return "", fmt.Errorf("no ChordPro files in %s", dir)
+	}
+	newest := paths[0]
+	var newestMod int64 = -1
+	for _, p := range paths {
+		fi, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		if m := fi.ModTime().UnixNano(); m > newestMod {
+			newestMod = m
+			newest = p
+		}
+	}
+	return newest, nil
 }
 
 type pickEntry struct {

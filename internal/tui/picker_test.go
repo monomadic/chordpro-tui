@@ -1,13 +1,42 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"chordpro-tui/internal/chordpro"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+func TestNewestSong(t *testing.T) {
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a.cho")
+	b := filepath.Join(dir, "b.cho")
+	if err := os.WriteFile(a, []byte("{title: A}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(b, []byte("{title: B}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(a, old, old); err != nil {
+		t.Fatal(err)
+	}
+	got, err := NewestSong(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(got) != "b.cho" {
+		t.Errorf("NewestSong = %q, want b.cho", filepath.Base(got))
+	}
+	if _, err := NewestSong(t.TempDir()); err == nil {
+		t.Error("expected an error for a directory with no songs")
+	}
+}
 
 func TestFuzzyMatch(t *testing.T) {
 	if _, _, ok := fuzzyMatch("wgn", "wagon_wheel.cho"); !ok {

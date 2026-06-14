@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// buildHeader composes the framed title card: title, subtitle/artist line, and
-// a row of metadata "pills" (key, capo, tempo, ...).
+// buildHeader composes the title block: title, subtitle/artist line, and a row
+// of metadata "pills" (key, capo, tempo, ...), centered with no border.
 func buildHeader(song *chordpro.Song, width int, th *Theme) string {
 	var rows []string
 
@@ -28,14 +28,13 @@ func buildHeader(song *chordpro.Song, width int, th *Theme) string {
 		rows = append(rows, pills)
 	}
 
-	inner := lipgloss.JoinVertical(lipgloss.Center, rows...)
+	header := lipgloss.JoinVertical(lipgloss.Center, rows...)
 
-	// Keep the frame within the screen width (account for border + padding).
-	maxInner := width - 6
-	if maxInner > 8 && lipgloss.Width(inner) > maxInner {
-		inner = lipgloss.NewStyle().Width(maxInner).Render(inner)
+	// Keep the header within the screen width.
+	if width > 8 && lipgloss.Width(header) > width {
+		header = lipgloss.NewStyle().Width(width).Render(header)
 	}
-	return th.Frame.Render(inner)
+	return header
 }
 
 // subtitleLine merges artist, subtitle, and album into one bullet-joined line.
@@ -78,9 +77,9 @@ func buildFooter(song *chordpro.Song, width int, th *Theme, truncated bool) stri
 		left += "   " + status
 	}
 
-	hint := "o open · e edit · n/p/r songs · s view · t theme · B bg · q"
+	hint := "? help · o open · c chords · s view · t theme · q"
 	if truncated {
-		hint = "▾ more — s scroll · o open · q quit"
+		hint = "▾ more — ? help · s scroll · q quit"
 	}
 
 	gap := width - lipgloss.Width(left) - lipgloss.Width(hint) - 2

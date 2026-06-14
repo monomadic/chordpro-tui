@@ -2,7 +2,7 @@
 
 A colorful, modern terminal renderer for [ChordPro](https://www.chordpro.org/)
 song files. It lays a whole song out to fill **one screen** — chords stacked
-over lyrics, a framed title card, metadata pills — flowing into balanced
+over lyrics, a centered title, metadata pills — flowing into balanced
 newspaper columns so nothing scrolls off the page when it doesn't have to.
 
 It also has a **teleprompter mode** that auto-scrolls at the song's tempo.
@@ -32,6 +32,9 @@ Requires Go 1.21+ and a truecolor terminal for the full palette.
 # Interactive (default when stdout is a terminal)
 chordpro-tui testdata/wagon_wheel.cho
 
+# Point at a folder to open its most recently modified song
+chordpro-tui testdata/
+
 # Start straight into auto-scroll teleprompter mode
 chordpro-tui -scroll testdata/wagon_wheel.cho
 
@@ -50,6 +53,7 @@ chordpro-tui < testdata/wagon_wheel.cho
 
 | Key              | Action                                            |
 | ---------------- | ------------------------------------------------- |
+| `?`              | show all keyboard shortcuts                       |
 | `o`              | open another song from this folder (fuzzy finder) |
 | `e`              | edit the current file in `$EDITOR`                |
 | `n` / `p`        | load next / previous song in the folder           |
@@ -66,6 +70,8 @@ chordpro-tui < testdata/wagon_wheel.cho
 | `f`/`b`, PgDn/PgUp | scroll a page                                   |
 | `g` / `G`        | jump to top / bottom (`g` restarts sync)          |
 | `q`              | quit                                              |
+
+Press `?` any time for an on-screen overlay of all of these.
 
 ### View modes
 
@@ -97,6 +103,10 @@ backgrounds, pass a song path to use your own): it renders the song in each
 theme back-to-back with colors forced on.
 
 ### Opening, browsing & editing songs
+
+Pass a **folder** instead of a file and the most recently modified song in it
+opens (handy for "show me the chart I just saved"); the rest of the folder is
+then a keypress away.
 
 `o` opens a fuzzy finder over every ChordPro file
 (`.cho .chopro .chordpro .crd .pro .cp`) in the current song's folder. Each row

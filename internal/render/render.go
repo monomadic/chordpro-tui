@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	gutter      = "   " // horizontal space between columns
-	chorusBar = "▍ " // left accent for chorus lines
-	colPad    = 1    // extra left padding inside each column
+	gutter    = "   " // horizontal space between columns
+	chorusBar = "▍ "  // left accent for chorus lines
+	colPad    = 1     // extra left padding inside each column
 )
 
 // block is a self-contained, already-styled rectangle of text (one section).
@@ -96,15 +96,38 @@ func buildBlocks(song *chordpro.Song, th *Theme) []block {
 		for _, ln := range sec.Lines {
 			lines = append(lines, renderLine(ln, sec.Kind, th)...)
 		}
+		lines = tidyBlanks(lines)
 		if sec.Kind == chordpro.KindChorus {
 			lines = decorateChorus(lines, th)
 		}
 		if len(lines) > 0 {
-			lines = append(lines, "") // breathing room after each section
 			blocks = append(blocks, newBlock(lines))
 		}
 	}
 	return blocks
+}
+
+// tidyBlanks collapses any run of blank lines down to a single blank and trims
+// blank lines from the start and end, so stray whitespace in a song doesn't
+// open up gaps in the rendered output.
+func tidyBlanks(lines []string) []string {
+	var out []string
+	prevBlank := false
+	for _, l := range lines {
+		blank := lipgloss.Width(l) == 0
+		if blank && prevBlank {
+			continue
+		}
+		out = append(out, l)
+		prevBlank = blank
+	}
+	for len(out) > 0 && lipgloss.Width(out[0]) == 0 {
+		out = out[1:]
+	}
+	for len(out) > 0 && lipgloss.Width(out[len(out)-1]) == 0 {
+		out = out[:len(out)-1]
+	}
+	return out
 }
 
 // renderLine produces the styled rows for a single source line: a chord row
