@@ -134,6 +134,7 @@ Keys (interactive):
   n / p        load next / previous song in the folder
   r            load a random song in the folder
   s            cycle view: fit → scroll → sync
+  c            chord-shape sheet for the current song
   t            cycle color theme
   B            toggle themed background fill
   [ / ]        transpose down / up        (fit mode)

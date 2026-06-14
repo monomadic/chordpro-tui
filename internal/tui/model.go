@@ -63,6 +63,8 @@ type Model struct {
 	pick    picker
 
 	bgFill bool // fill the screen with the theme's background color
+
+	chords bool // showing the chord-shapes sheet overlay
 }
 
 // Options configure the initial view state.
@@ -186,6 +188,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.picking {
 		return m.handlePickerKey(msg)
 	}
+	if m.chords {
+		return m.handleChordsKey(msg)
+	}
 
 	switch msg.String() {
 	case "q", "ctrl+c", "esc":
@@ -220,6 +225,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.tIdx = (m.tIdx + 1) % len(m.themes)
 		m.theme = m.themes[m.tIdx]
 		m.rebuild()
+
+	case "c": // show the chord-shapes sheet for the current song
+		m.chords = true
 
 	case "B": // toggle themed background fill
 		m.bgFill = !m.bgFill
@@ -324,6 +332,30 @@ func (m Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else if msg.Type == tea.KeySpace {
 			m.pick.appendQuery(" ")
 		}
+	}
+	return m, nil
+}
+
+// handleChordsKey drives the chord-shapes sheet: transpose and theme stay live
+// so the diagrams track the song, and c/esc dismiss it.
+func (m Model) handleChordsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "c", "esc":
+		m.chords = false
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "]", "+", "=":
+		m.setTranspose(m.transp + 1)
+	case "[", "-", "_":
+		m.setTranspose(m.transp - 1)
+	case "0":
+		m.setTranspose(0)
+	case "t":
+		m.tIdx = (m.tIdx + 1) % len(m.themes)
+		m.theme = m.themes[m.tIdx]
+		m.rebuild()
+	case "B":
+		m.bgFill = !m.bgFill
 	}
 	return m, nil
 }
@@ -459,6 +491,8 @@ func (m Model) View() string {
 	switch {
 	case m.picking:
 		out = m.pick.view(m.w, m.h, m.theme)
+	case m.chords:
+		out = render.RenderChordSheet(m.song, m.w, m.h, m.theme)
 	case m.mode == modeScroll:
 		out = m.windowView(m.offset, m.scrollStatus())
 	case m.mode == modeSync:
