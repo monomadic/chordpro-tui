@@ -62,6 +62,7 @@ chordpro-tui < testdata/wagon_wheel.cho
 | `c`              | chord-shape sheet for the current song            |
 | `t`              | cycle color theme                                 |
 | `B`              | toggle themed background fill                      |
+| `h`              | toggle the title header                            |
 | `[` / `]`        | transpose down / up (fit mode)                    |
 | `0`              | reset transpose                                   |
 | `space`          | pause/resume scroll · play/pause sync             |
@@ -109,11 +110,11 @@ opens (handy for "show me the chart I just saved"); the rest of the folder is
 then a keypress away.
 
 `o` opens a fuzzy finder over every ChordPro file
-(`.cho .chopro .chordpro .crd .pro .cp`) in the current song's folder. Each row
-shows the **title, artist, and a compact metadata column** (key · capo · tempo ·
-year) in separate colored columns (no file extensions); type to filter by title
-(matched characters are highlighted), `↑`/`↓` to move, `enter` to open, `esc` to
-cancel.
+(`.cho .chopro .chordpro .crd .pro .cp`) in the current song's folder. Rows are
+laid out in labelled columns — **title, artist, key, capo, tempo, year** (the
+metadata columns drop off, narrowest first, on small terminals) and file
+extensions are hidden. Type to filter by title (matched characters are
+highlighted), `↑`/`↓` to move, `enter` to open, `esc` to cancel.
 
 Without opening the finder you can also jump straight between songs in the
 folder: `n` / `p` for next / previous (alphabetical, wrapping) and `r` for a

@@ -83,44 +83,33 @@ func TestNewPickerScansChordFiles(t *testing.T) {
 	}
 }
 
-func TestSongMeta(t *testing.T) {
-	s, _ := chordpro.ParseString("{key: G}\n{capo: 2}\n{tempo: 76}\n{year: 2004}\n")
-	if got := songMeta(s); got != "G · capo 2 · 76 bpm · 2004" {
-		t.Errorf("songMeta = %q", got)
-	}
-	s2, _ := chordpro.ParseString("{tempo: 120}\n")
-	if got := songMeta(s2); got != "120 bpm" {
-		t.Errorf("songMeta(tempo only) = %q", got)
-	}
-	s3, _ := chordpro.ParseString("{title: X}\n")
-	if got := songMeta(s3); got != "" {
-		t.Errorf("songMeta(no meta) = %q, want empty", got)
-	}
-}
-
-func TestFitTokens(t *testing.T) {
-	full := "G · capo 2 · 76 bpm · 2004"
-	if got := fitTokens(full, 100); got != full {
-		t.Errorf("wide fit dropped tokens: %q", got)
-	}
-	if got := fitTokens(full, 10); got != "G · capo 2" {
-		t.Errorf("fitTokens(10) = %q, want 'G · capo 2'", got)
-	}
-	if got := fitTokens(full, 1); got != "G" {
-		t.Errorf("fitTokens(1) = %q, want 'G'", got)
-	}
-}
-
 func TestPickerEntriesCarryMeta(t *testing.T) {
 	p := newPicker("../../testdata", "")
-	found := false
+	var gotKey, gotTempo bool
 	for _, e := range p.entries {
-		if strings.Contains(e.meta, "bpm") {
-			found = true
+		if e.key != "" {
+			gotKey = true
+		}
+		if e.tempo != "" {
+			gotTempo = true
 		}
 	}
-	if !found {
-		t.Error("expected at least one entry with tempo metadata")
+	if !gotKey || !gotTempo {
+		t.Errorf("expected entries with key and tempo metadata (key=%v tempo=%v)", gotKey, gotTempo)
+	}
+}
+
+func TestPickerColumnsDropOnNarrow(t *testing.T) {
+	wide := pickerColumns(120)
+	if wide.key == 0 || wide.capo == 0 || wide.tempo == 0 || wide.year == 0 {
+		t.Errorf("wide layout should keep all meta columns: %+v", wide)
+	}
+	narrow := pickerColumns(44)
+	if narrow.year != 0 {
+		t.Errorf("narrow layout should drop the year column: %+v", narrow)
+	}
+	if narrow.title <= 0 || narrow.artist <= 0 {
+		t.Errorf("title/artist must stay positive: %+v", narrow)
 	}
 }
 

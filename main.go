@@ -161,6 +161,7 @@ Keys (interactive):
   c            chord-shape sheet for the current song
   t            cycle color theme
   B            toggle themed background fill
+  h            toggle the title header
   [ / ]        transpose down / up        (fit mode)
   0            reset transpose
   space        pause/resume scroll · play/pause sync

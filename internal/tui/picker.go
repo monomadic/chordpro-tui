@@ -48,7 +48,10 @@ type pickEntry struct {
 	path   string // full path passed to loadSong
 	title  string // song title (falls back to the filename without extension)
 	artist string // song artist, if any
-	meta   string // compact extra metadata (key · capo · tempo · year)
+	key    string // key signature
+	capo   string // capo fret
+	tempo  string // tempo (bpm)
+	year   string // year
 }
 
 type pickMatch struct {
@@ -146,27 +149,11 @@ func readMeta(path, fallback string) pickEntry {
 		e.title = s.Title
 	}
 	e.artist = s.Artist
-	e.meta = songMeta(s)
+	e.key = s.Key
+	e.capo = s.Capo
+	e.tempo = s.Tempo
+	e.year = s.Year
 	return e
-}
-
-// songMeta builds a compact "key · capo · tempo · year" string, skipping
-// anything the song doesn't specify.
-func songMeta(s *chordpro.Song) string {
-	var parts []string
-	if s.Key != "" {
-		parts = append(parts, s.Key)
-	}
-	if s.Capo != "" {
-		parts = append(parts, "capo "+s.Capo)
-	}
-	if s.Tempo != "" {
-		parts = append(parts, s.Tempo+" bpm")
-	}
-	if s.Year != "" {
-		parts = append(parts, s.Year)
-	}
-	return strings.Join(parts, " · ")
 }
 
 func (p *picker) setQuery(q string) {
@@ -294,15 +281,64 @@ func isBoundary(r rune) bool {
 	return false
 }
 
+// pcols holds the rendered width of each picker column (0 = hidden).
+type pcols struct {
+	title, artist, key, capo, tempo, year int
+}
+
+// pickerColumns lays out the columns for width w. Title and artist share the
+// flexible space; key/capo/tempo/year are fixed and dropped (year first, key
+// last) when the screen is too narrow to fit them.
+func pickerColumns(w int) pcols {
+	c := pcols{key: 5, capo: 5, tempo: 6, year: 5}
+	avail := w - 2 // minus the pointer column
+	const minTitleArtist = 24
+
+	metaTotal := func(c pcols) int {
+		t := 0
+		for _, x := range []int{c.key, c.capo, c.tempo, c.year} {
+			if x > 0 {
+				t += 1 + x // leading gap + column
+			}
+		}
+		return t
+	}
+	for metaTotal(c) > avail-minTitleArtist-1 {
+		switch {
+		case c.year > 0:
+			c.year = 0
+		case c.tempo > 0:
+			c.tempo = 0
+		case c.capo > 0:
+			c.capo = 0
+		case c.key > 0:
+			c.key = 0
+		default:
+		}
+		if c.key == 0 && c.capo == 0 && c.tempo == 0 && c.year == 0 {
+			break
+		}
+	}
+
+	rest := avail - metaTotal(c) - 1 // 1 gap between title and artist
+	if rest < 8 {
+		rest = 8
+	}
+	c.title = rest * 55 / 100
+	c.artist = rest - c.title
+	return c
+}
+
 // view renders the full-screen picker overlay.
 func (p *picker) view(w, h int, th *render.Theme) string {
-	const headerRows, footerRows = 3, 1
+	const headerRows, footerRows = 4, 1 // title, prompt, divider, column headers
 	listH := h - headerRows - footerRows
 	if listH < 1 {
 		listH = 1
 	}
 	p.scrollIntoView(listH)
 
+	cols := pickerColumns(w)
 	caret := lipgloss.NewStyle().Foreground(th.P.Chord).Bold(true)
 	dim := th.Muted
 
@@ -316,6 +352,7 @@ func (p *picker) view(w, h int, th *render.Theme) string {
 	promptLine := lipgloss.NewStyle().Width(w).MaxWidth(w).Render(prompt)
 
 	divider := dim.Render(strings.Repeat("─", w))
+	columnHeader := p.renderHeaderRow(cols, th)
 
 	// List rows.
 	var rows []string
@@ -329,7 +366,7 @@ func (p *picker) view(w, h int, th *render.Theme) string {
 		end = len(p.matches)
 	}
 	for i := p.top; i < end; i++ {
-		rows = append(rows, p.renderRow(p.matches[i], i == p.cursor, w, th))
+		rows = append(rows, p.renderRow(p.matches[i], i == p.cursor, cols, th))
 	}
 	for len(rows) < listH {
 		rows = append(rows, "")
@@ -337,16 +374,36 @@ func (p *picker) view(w, h int, th *render.Theme) string {
 
 	hint := dim.Render("↑/↓ move · type to filter · enter open · esc cancel")
 
-	out := titleLine + "\n" + promptLine + "\n" + divider + "\n" +
+	out := titleLine + "\n" + promptLine + "\n" + divider + "\n" + columnHeader + "\n" +
 		strings.Join(rows[:listH], "\n") + "\n" + hint
 	return out
 }
 
-// renderRow styles one list entry as three columns — title, artist, and a
-// compact metadata column (key · capo · tempo · year), each in its own color.
-// Matched characters in the title are highlighted; the selected row is filled
-// with a subtle background.
-func (p *picker) renderRow(m pickMatch, selected bool, w int, th *render.Theme) string {
+// renderHeaderRow draws the column-title row, aligned with the data columns.
+func (p *picker) renderHeaderRow(c pcols, th *render.Theme) string {
+	hs := lipgloss.NewStyle().Foreground(th.P.Muted).Bold(true)
+	var b strings.Builder
+	b.WriteString("  ") // pointer column
+	b.WriteString(styleCol([]rune("TITLE"), nil, c.title, hs, hs))
+	b.WriteString(" ")
+	b.WriteString(styleCol([]rune("ARTIST"), nil, c.artist, hs, hs))
+	col := func(label string, width int) {
+		if width <= 0 {
+			return
+		}
+		b.WriteString(" ")
+		b.WriteString(styleCol([]rune(label), nil, width, hs, hs))
+	}
+	col("KEY", c.key)
+	col("CAPO", c.capo)
+	col("TEMPO", c.tempo)
+	col("YEAR", c.year)
+	return b.String()
+}
+
+// renderRow styles one list entry across the columns, highlighting matched
+// characters in the title; the selected row is filled with a subtle background.
+func (p *picker) renderRow(m pickMatch, selected bool, c pcols, th *render.Theme) string {
 	e := p.entries[m.idx]
 
 	// Style factory: every segment shares the selection background so it reads
@@ -360,22 +417,13 @@ func (p *picker) renderRow(m pickMatch, selected bool, w int, th *render.Theme) 
 	}
 	titleSt := mk(th.P.Title)
 	artistSt := mk(th.P.Subtitle)
-	metaSt := mk(th.P.Comment)
+	keySt := mk(th.P.Section)
+	capoSt := mk(th.P.Comment)
+	tempoSt := mk(th.P.Comment)
+	yearSt := mk(th.P.Muted)
 	sepSt := mk(th.P.Muted)
 	matchSt := mk(th.P.Chord).Bold(true)
 	pointerSt := mk(th.P.Chord).Bold(true)
-
-	// Column geometry: pointer(2) + title + gap(1) + artist + gap(1) + meta == w.
-	avail := w - 4
-	if avail < 6 {
-		avail = 6
-	}
-	titleW := avail * 42 / 100
-	artistW := avail * 30 / 100
-	metaW := avail - titleW - artistW
-	if titleW < 6 { // too narrow to split: give it all to the title
-		titleW, artistW, metaW = avail, 0, 0
-	}
 
 	pointer := "  "
 	if selected {
@@ -384,32 +432,21 @@ func (p *picker) renderRow(m pickMatch, selected bool, w int, th *render.Theme) 
 
 	var b strings.Builder
 	b.WriteString(pointerSt.Render(pointer))
-	b.WriteString(styleCol([]rune(e.title), m.pos, titleW, titleSt, matchSt))
+	b.WriteString(styleCol([]rune(e.title), m.pos, c.title, titleSt, matchSt))
 	b.WriteString(sepSt.Render(" "))
-	b.WriteString(styleCol([]rune(e.artist), nil, artistW, artistSt, artistSt))
-	b.WriteString(sepSt.Render(" "))
-	b.WriteString(styleCol([]rune(fitTokens(e.meta, metaW)), nil, metaW, metaSt, metaSt))
+	b.WriteString(styleCol([]rune(e.artist), nil, c.artist, artistSt, artistSt))
+	col := func(val string, width int, st lipgloss.Style) {
+		if width <= 0 {
+			return
+		}
+		b.WriteString(sepSt.Render(" "))
+		b.WriteString(styleCol([]rune(val), nil, width, st, st))
+	}
+	col(e.key, c.key, keySt)
+	col(e.capo, c.capo, capoSt)
+	col(e.tempo, c.tempo, tempoSt)
+	col(e.year, c.year, yearSt)
 	return b.String()
-}
-
-// fitTokens trims a " · "-joined string to the most leading tokens that fit in
-// width w, so the metadata column never cuts a value mid-token.
-func fitTokens(s string, w int) string {
-	if lipgloss.Width(s) <= w {
-		return s
-	}
-	out := ""
-	for _, tok := range strings.Split(s, " · ") {
-		cand := tok
-		if out != "" {
-			cand = out + " · " + tok
-		}
-		if lipgloss.Width(cand) > w {
-			break
-		}
-		out = cand
-	}
-	return out
 }
 
 // styleCol renders runes into a fixed-width column, highlighting positions in
