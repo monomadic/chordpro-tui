@@ -39,6 +39,7 @@ var helpGroups = []helpGroup{
 	{"Appearance", []helpRow{
 		{"t", "cycle theme"},
 		{"B", "toggle background fill"},
+		{"h", "toggle title header"},
 	}},
 	{"", []helpRow{
 		{"?", "this help"},

@@ -62,8 +62,9 @@ type Model struct {
 	picking bool
 	pick    picker
 
-	helping bool // showing the keyboard-shortcut overlay
-	bgFill  bool // fill the screen with the theme's background color
+	helping    bool // showing the keyboard-shortcut overlay
+	bgFill     bool // fill the screen with the theme's background color
+	hideHeader bool // hide the title/metadata header on song views
 
 	chords bool // showing the chord-shapes sheet overlay
 }
@@ -144,7 +145,7 @@ func songDuration(song *chordpro.Song) time.Duration {
 func (m *Model) rebuild() {
 	m.song = m.base.Transposed(m.transp)
 	if m.w > 0 {
-		m.long = render.RenderLong(m.song, m.w, m.theme)
+		m.long = render.RenderLongWith(m.song, m.w, m.theme, render.RenderOpts{HideHeader: m.hideHeader})
 	}
 	m.clampOffset()
 }
@@ -243,6 +244,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "B": // toggle themed background fill
 		m.bgFill = !m.bgFill
+
+	case "h": // toggle the title/metadata header
+		m.hideHeader = !m.hideHeader
+		m.rebuild()
 
 	case "]", "+", "=": // transpose up (also speed/duration, see below)
 		if m.mode == modeFit {
@@ -512,7 +517,7 @@ func (m Model) View() string {
 	case m.mode == modeSync:
 		out = m.windowView(m.syncOffset(), m.progressBar())
 	default:
-		out = render.Render(m.song, m.w, m.h, m.theme)
+		out = render.RenderWith(m.song, m.w, m.h, m.theme, render.RenderOpts{HideHeader: m.hideHeader})
 	}
 	if m.bgFill {
 		out = render.ApplyBackground(out, m.w, m.theme.P.Bg)

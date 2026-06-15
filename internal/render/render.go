@@ -34,10 +34,20 @@ func newBlock(lines []string) block {
 	return block{lines: lines, width: w, height: len(lines)}
 }
 
+// RenderOpts tweaks how a song is rendered.
+type RenderOpts struct {
+	HideHeader bool // omit the title/metadata header block
+}
+
 // Render lays the whole song out to fit within width x height and returns the
 // composed screen string. When the song is shorter than the screen it is
 // centered; when taller it flows into balanced newspaper columns.
 func Render(song *chordpro.Song, width, height int, th *Theme) string {
+	return RenderWith(song, width, height, th, RenderOpts{})
+}
+
+// RenderWith is Render with display options.
+func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOpts) string {
 	if th == nil {
 		th = DefaultTheme()
 	}
@@ -48,11 +58,17 @@ func Render(song *chordpro.Song, width, height int, th *Theme) string {
 		height = 6
 	}
 
-	header := buildHeader(song, width, th)
+	header := ""
+	headerH, topGap, gapBelow := 0, 0, 0
+	if !opts.HideHeader {
+		header = buildHeader(song, width, th)
+		headerH = lipgloss.Height(header)
+		topGap = 1   // blank line above the title
+		gapBelow = 1 // blank line between header and body
+	}
 
-	headerH := lipgloss.Height(header)
-	// Reserve a blank line below the header and one line for the footer.
-	availH := height - headerH - 2
+	// Reserve the top gap, header, the gap below it, and the footer line.
+	availH := height - topGap - headerH - gapBelow - 1
 	if availH < 1 {
 		availH = 1
 	}
@@ -77,12 +93,14 @@ func Render(song *chordpro.Song, width, height int, th *Theme) string {
 	body = strings.Join(bodyLines, "\n")
 
 	footer := buildFooter(song, width, th, truncated)
-
 	body = lipgloss.PlaceHorizontal(width, lipgloss.Center, body)
-	header = lipgloss.PlaceHorizontal(width, lipgloss.Center, header)
 	footer = lipgloss.PlaceHorizontal(width, lipgloss.Center, footer)
 
-	return header + "\n\n" + body + "\n" + footer
+	if opts.HideHeader {
+		return body + "\n" + footer
+	}
+	header = lipgloss.PlaceHorizontal(width, lipgloss.Center, header)
+	return "\n" + header + "\n\n" + body + "\n" + footer
 }
 
 // buildBlocks turns each song section into a styled block.
@@ -425,23 +443,29 @@ func hexRGB(s string) (r, g, b int, ok bool) {
 // every section stacked). It is the content the scroll mode windows over, so it
 // never drops lines to fit the screen. Returns the styled lines.
 func RenderLong(song *chordpro.Song, width int, th *Theme) []string {
+	return RenderLongWith(song, width, th, RenderOpts{})
+}
+
+// RenderLongWith is RenderLong with display options.
+func RenderLongWith(song *chordpro.Song, width int, th *Theme, opts RenderOpts) []string {
 	if th == nil {
 		th = DefaultTheme()
 	}
 	if width < 20 {
 		width = 20
 	}
-	header := buildHeader(song, width, th)
-	body := packColumns(buildBlocks(song, th), width, 1<<30) // huge cap => one column
-
-	// Center both blocks so the song sits in the middle of wide screens with
+	// Center the body so the song sits in the middle of wide screens with
 	// margins either side; text inside each block stays left-aligned.
-	header = lipgloss.PlaceHorizontal(width, lipgloss.Center, header)
+	body := packColumns(buildBlocks(song, th), width, 1<<30) // huge cap => one column
 	body = lipgloss.PlaceHorizontal(width, lipgloss.Center, body)
 
 	var lines []string
-	lines = append(lines, strings.Split(header, "\n")...)
-	lines = append(lines, "")
+	if !opts.HideHeader {
+		header := lipgloss.PlaceHorizontal(width, lipgloss.Center, buildHeader(song, width, th))
+		lines = append(lines, "") // blank line above the title
+		lines = append(lines, strings.Split(header, "\n")...)
+		lines = append(lines, "")
+	}
 	lines = append(lines, strings.Split(body, "\n")...)
 	return lines
 }
