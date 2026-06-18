@@ -72,3 +72,22 @@ func stripANSI(s string) string {
 	}
 	return b.String()
 }
+
+func TestShapeForPrefersDefine(t *testing.T) {
+	song := &chordpro.Song{
+		Defines: map[string]chordpro.ChordDefinition{
+			"G": {Name: "G", BaseFret: 1, Frets: []int{3, 2, 0, 0, 3, 3}},
+		},
+	}
+	sh, ok := shapeFor(song, "G")
+	if !ok {
+		t.Fatal("define not used")
+	}
+	if sh.BaseFret != 1 || len(sh.Frets) != 6 || sh.Frets[5] != 3 {
+		t.Errorf("custom shape not returned: %+v", sh)
+	}
+	// Chords without a define fall back to the built-in library.
+	if _, ok := shapeFor(song, "C"); !ok {
+		t.Error("library fallback failed for C")
+	}
+}

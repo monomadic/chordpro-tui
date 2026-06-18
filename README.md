@@ -137,11 +137,20 @@ editor the song is reloaded automatically, preserving your transpose and theme.
 ## Supported ChordPro
 
 Directives: `title`/`t`, `subtitle`/`st`, `artist`, `composer`, `album`, `key`,
-`capo`, `tempo`, `time`, `year`, `duration`/`length`, `comment`/`c`, and the
-`start_of_*`/`end_of_*` (and `soc`/`eoc`/`sov`/`sob`/`sot`) environments for
-choruses, verses, bridges, and tab blocks. Inline `[chord]` markup is positioned
-over the syllable that follows it. Unknown directives are ignored; `#` lines are
-source comments.
+`capo`, `tempo`, `bpm`, `time`/`time_signature`, `year`, `tuning`,
+`duration`/`length`, `comment`/`c`, `define`, and the `start_of_*`/`end_of_*`
+(and `soc`/`sov`/`sob`/`sot`/`soi`/`soo`) environments for choruses, verses,
+bridges, tab blocks, intros, and outros. Inline `[chord]` markup is positioned
+over the syllable that follows it.
+
+- `bpm` drives the scroll/sync speed; when both are present `bpm` wins and the
+  TEMPO pill shows it, so a word `tempo` like `Allegro` doesn't break pacing.
+- `define` chord fingerings override the built-in shapes in the chord sheet
+  (`c`); `tuning` is shown there too.
+- Blank lines **inside** a `start_of_*`/`end_of_*` block are kept as spacing;
+  loose (un-bracketed) paragraphs still split on blank lines.
+
+Unknown directives are ignored; `#` lines are source comments.
 
 ## Project layout
 

@@ -14,14 +14,44 @@ type Song struct {
 	Album    string
 	Key      string
 	Capo     string
-	Tempo    string
+	Tempo    string // tempo marking or BPM as written, e.g. "Allegro" or "120"
+	BPM      string // numeric beats per minute, e.g. "140" (drives scroll speed)
 	Time     string // time signature, e.g. 4/4
 	Year     string
+	Tuning   string        // instrument tuning, e.g. "E A D G B E"
 	Duration time.Duration // total song length, for scroll-sync mode (0 if unknown)
 	Sections []Section
 
+	// Defines holds {define} chord fingerings, keyed by chord name.
+	Defines map[string]ChordDefinition
+
 	// TransposeBy records the semitone shift applied by Transposed (0 = none).
 	TransposeBy int
+}
+
+// ChordDefinition is a custom chord fingering from a {define} directive.
+type ChordDefinition struct {
+	Name     string // chord name, e.g. "Fmaj7"
+	BaseFret int    // fret number of the top displayed row (1 = at the nut)
+	Frets    []int  // one per string, low→high; -1 = muted, 0 = open
+}
+
+// TempoDisplay is the value shown on the TEMPO pill: the BPM when stated,
+// otherwise the tempo marking.
+func (s Song) TempoDisplay() string {
+	if s.BPM != "" {
+		return s.BPM
+	}
+	return s.Tempo
+}
+
+// SpeedHint is the numeric-ish tempo used to derive scroll speed: BPM when
+// stated, otherwise the tempo field (which may itself be a number).
+func (s Song) SpeedHint() string {
+	if s.BPM != "" {
+		return s.BPM
+	}
+	return s.Tempo
 }
 
 // Meta returns the header "pills" worth displaying, in a stable order.
@@ -39,7 +69,7 @@ func (s Song) Meta() [][2]string {
 	}
 	add("KEY", key)
 	add("CAPO", s.Capo)
-	add("TEMPO", s.Tempo)
+	add("TEMPO", s.TempoDisplay())
 	add("TIME", s.Time)
 	add("YEAR", s.Year)
 	return out
@@ -62,6 +92,8 @@ const (
 	KindChorus
 	KindBridge
 	KindTab
+	KindIntro
+	KindOutro
 	KindComment // a standalone {comment} not attached to lyrics
 	KindOther
 )

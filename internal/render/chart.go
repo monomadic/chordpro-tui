@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"chordpro-tui/internal/chords"
 	"chordpro-tui/internal/chordpro"
+	"chordpro-tui/internal/chords"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -31,14 +31,14 @@ func RenderChordSheet(song *chordpro.Song, width, height int, th *Theme) string 
 	}
 
 	title := th.Title.Render(song.Title)
-	sub := th.Subtitle.Render("Chord shapes" + keySuffix(song))
+	sub := th.Subtitle.Render("Chord shapes" + keySuffix(song) + tuningSuffix(song))
 	header := lipgloss.JoinVertical(lipgloss.Center, title, sub)
 
 	names := uniqueChords(song)
 	var diagrams []string
 	var missing []string
 	for _, name := range names {
-		if shape, ok := chords.Lookup(name); ok {
+		if shape, ok := shapeFor(song, name); ok {
 			diagrams = append(diagrams, chordDiagram(shape, th))
 		} else {
 			missing = append(missing, name)
@@ -82,6 +82,23 @@ func keySuffix(song *chordpro.Song) string {
 		return ""
 	}
 	return " · key of " + song.Key
+}
+
+// tuningSuffix renders " · tuning E A D G B E" when the song states one.
+func tuningSuffix(song *chordpro.Song) string {
+	if song.Tuning == "" {
+		return ""
+	}
+	return " · tuning " + song.Tuning
+}
+
+// shapeFor resolves a chord's fingering, preferring a song's own {define} over
+// the built-in library so custom voicings win when present.
+func shapeFor(song *chordpro.Song, name string) (chords.Shape, bool) {
+	if d, ok := song.Defines[name]; ok {
+		return chords.Shape{Name: name, Frets: d.Frets, BaseFret: d.BaseFret}, true
+	}
+	return chords.Lookup(name)
 }
 
 // uniqueChords collects every chord name in the song in first-use order,

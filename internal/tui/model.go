@@ -91,7 +91,7 @@ func New(song *chordpro.Song, opts Options) Model {
 		tIdx:      tIdx,
 		theme:     themes[tIdx],
 		transp:    clampTranspose(opts.Transpose),
-		linesPerS: speedFromTempo(song.Tempo),
+		linesPerS: speedFromTempo(song.SpeedHint()),
 		duration:  songDuration(song),
 		path:      opts.Path,
 		bgFill:    opts.Background,
@@ -393,7 +393,7 @@ func (m *Model) loadSong(path string) error {
 	m.path = path
 	m.transp = 0
 	m.duration = songDuration(song)
-	m.linesPerS = speedFromTempo(song.Tempo)
+	m.linesPerS = speedFromTempo(song.SpeedHint())
 	m.elapsed = 0
 	m.offset = 0
 	m.running = false

@@ -46,6 +46,11 @@ func Render(song *chordpro.Song, width, height int, th *Theme) string {
 	return RenderWith(song, width, height, th, RenderOpts{})
 }
 
+// spacingPlan is a candidate set of vertical paddings. gapBelow is the blank
+// rows between the header and the body, and sectionGap the blank rows between
+// stacked section blocks within a column.
+type spacingPlan struct{ gapBelow, sectionGap int }
+
 // RenderWith is Render with display options.
 func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOpts) string {
 	if th == nil {
@@ -59,48 +64,65 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 	}
 
 	header := ""
-	headerH, topGap, gapBelow := 0, 0, 0
+	headerH := 0
 	if !opts.HideHeader {
 		header = buildHeader(song, width, th)
 		headerH = lipgloss.Height(header)
-		topGap = 1   // blank line above the title
-		gapBelow = 1 // blank line between header and body
-	}
-
-	// Reserve the top gap, header, the gap below it, and the footer line.
-	availH := height - topGap - headerH - gapBelow - 1
-	if availH < 1 {
-		availH = 1
 	}
 
 	blocks := buildBlocks(song, th)
-	body := packColumns(blocks, width, availH)
 
-	// If the song can't fit the page, clip it so it never spills past the
-	// screen (which would bury the footer), and flag that there's more.
-	bodyLines := strings.Split(body, "\n")
+	// Choose vertical spacing. We prefer a roomy layout (a blank line below the
+	// header, a blank line between sections), but give those rows back to the
+	// song before clipping anything: a layout that's only a line or two too tall
+	// otherwise loses content off the bottom. Plans run roomiest → tightest; we
+	// take the first that fits, else the tightest (whose body is then clipped,
+	// with the footer flagging "more").
+	plans := []spacingPlan{{0, 1}, {0, 0}}
+	if !opts.HideHeader {
+		plans = []spacingPlan{{1, 1}, {0, 1}, {0, 0}}
+	}
+
+	var cols [][]block
+	var sel spacingPlan
+	var budget int
+	for _, p := range plans {
+		b := height - headerH - p.gapBelow - 1 // -1 for footer
+		if b < 1 {
+			b = 1
+		}
+		c := packColumns(blocks, width, b, p.sectionGap)
+		cols, sel, budget = c, p, b
+		if maxColHeight(c, p.sectionGap) <= b {
+			break // fits at this spacing; roomiest wins
+		}
+	}
+
+	// Fit the body to exactly `budget` rows: clip an over-tall song (so it never
+	// buries the footer) or center a short one, keeping the footer pinned.
+	bodyLines := strings.Split(renderCols(cols, sel.sectionGap), "\n")
 	truncated := false
-	if len(bodyLines) > availH {
-		bodyLines = bodyLines[:availH]
+	if len(bodyLines) > budget {
+		bodyLines = bodyLines[:budget]
 		truncated = true
-	} else if pad := availH - len(bodyLines); pad > 0 {
-		// Center the body vertically, padding top and bottom so the region
-		// still fills availH and the footer stays pinned to the bottom.
+	} else if pad := budget - len(bodyLines); pad > 0 {
 		top := pad / 2
 		bodyLines = append(make([]string, top), bodyLines...)
 		bodyLines = append(bodyLines, make([]string, pad-top)...)
 	}
-	body = strings.Join(bodyLines, "\n")
+	body := lipgloss.PlaceHorizontal(width, lipgloss.Center, strings.Join(bodyLines, "\n"))
+	footer := lipgloss.PlaceHorizontal(width, lipgloss.Center, buildFooter(song, width, th, truncated))
 
-	footer := buildFooter(song, width, th, truncated)
-	body = lipgloss.PlaceHorizontal(width, lipgloss.Center, body)
-	footer = lipgloss.PlaceHorizontal(width, lipgloss.Center, footer)
-
-	if opts.HideHeader {
-		return body + "\n" + footer
+	var lines []string
+	if !opts.HideHeader {
+		lines = append(lines, strings.Split(lipgloss.PlaceHorizontal(width, lipgloss.Center, header), "\n")...)
+		for i := 0; i < sel.gapBelow; i++ {
+			lines = append(lines, "")
+		}
 	}
-	header = lipgloss.PlaceHorizontal(width, lipgloss.Center, header)
-	return "\n" + header + "\n\n" + body + "\n" + footer
+	lines = append(lines, strings.Split(body, "\n")...)
+	lines = append(lines, footer)
+	return strings.Join(lines, "\n")
 }
 
 // buildBlocks turns each song section into a styled block.
@@ -230,20 +252,21 @@ func decorateChorus(lines []string, th *Theme) []string {
 	return out
 }
 
-// packColumns flows blocks into balanced newspaper columns and joins them side
-// by side. It searches for the fewest columns that keep every column within
-// maxH, while never letting the real layout exceed width — so the result never
-// overflows horizontally. Each candidate is measured for its actual width
-// (columns size to their own content), so legitimate multi-column layouts are
-// not rejected by one long line elsewhere in the song.
-func packColumns(blocks []block, width, maxH int) string {
+// packColumns flows blocks into balanced newspaper columns and returns the
+// chosen column groups. It searches for the fewest columns that keep every
+// column within maxH (using gap blank rows between stacked blocks), while never
+// letting the real layout exceed width — so the result never overflows
+// horizontally. Each candidate is measured for its actual width (columns size
+// to their own content), so legitimate multi-column layouts are not rejected by
+// one long line elsewhere in the song.
+func packColumns(blocks []block, width, maxH, gap int) [][]block {
 	if len(blocks) == 0 {
-		return ""
+		return nil
 	}
 
 	var chosen [][]block
 	for n := 1; n <= len(blocks); n++ {
-		cols := packInto(blocks, n)
+		cols := packInto(blocks, n, gap)
 		if layoutWidth(cols) > width {
 			if chosen == nil {
 				chosen = cols // even a single column is too wide; render anyway
@@ -251,17 +274,25 @@ func packColumns(blocks []block, width, maxH int) string {
 			break // adding columns only gets wider
 		}
 		chosen = cols
-		if maxColHeight(cols) <= maxH {
+		if maxColHeight(cols, gap) <= maxH {
 			break // fits the page height with the fewest columns that fit width
 		}
 		if len(cols) < n {
 			break // blocks can't be split into more columns; this is as tall as it gets
 		}
 	}
+	return chosen
+}
 
-	rendered := make([]string, len(chosen))
-	for i, c := range chosen {
-		rendered[i] = renderColumn(c)
+// renderCols stacks each column (with gap blank rows between blocks) and joins
+// them side by side with gutters.
+func renderCols(cols [][]block, gap int) string {
+	if len(cols) == 0 {
+		return ""
+	}
+	rendered := make([]string, len(cols))
+	for i, c := range cols {
+		rendered[i] = renderColumn(c, gap)
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, withGutters(rendered)...)
 }
@@ -280,11 +311,12 @@ func layoutWidth(cols [][]block) int {
 	return w
 }
 
-// maxColHeight is the height of the tallest column.
-func maxColHeight(cols [][]block) int {
+// maxColHeight is the height of the tallest column, counting gap blank rows
+// between stacked blocks.
+func maxColHeight(cols [][]block, gap int) int {
 	h := 0
 	for _, c := range cols {
-		if ch := totalHeight(c); ch > h {
+		if ch := totalHeight(c, gap); ch > h {
 			h = ch
 		}
 	}
@@ -296,14 +328,14 @@ func colWidth(blocks []block) int { return maxWidth(blocks) }
 // packInto distributes blocks into at most n balanced columns, keeping blocks
 // whole. It targets an even height per column, bumping the target until the
 // blocks actually fit in n columns.
-func packInto(blocks []block, n int) [][]block {
+func packInto(blocks []block, n, gap int) [][]block {
 	if n <= 1 {
 		return [][]block{blocks}
 	}
-	total := totalHeight(blocks)
+	total := totalHeight(blocks, gap)
 	target := ceilDiv(total, n)
 	for {
-		cols := greedyFill(blocks, target)
+		cols := greedyFill(blocks, target, gap)
 		if len(cols) <= n {
 			return cols
 		}
@@ -313,14 +345,14 @@ func packInto(blocks []block, n int) [][]block {
 
 // greedyFill packs blocks top-to-bottom, starting a new column whenever adding
 // the next block (plus its separator) would exceed target.
-func greedyFill(blocks []block, target int) [][]block {
+func greedyFill(blocks []block, target, gap int) [][]block {
 	var cols [][]block
 	var col []block
 	colH := 0
 	for _, b := range blocks {
 		add := b.height
 		if len(col) > 0 {
-			add++ // blank separator
+			add += gap // blank separator
 		}
 		if colH+add > target && len(col) > 0 {
 			cols = append(cols, col)
@@ -337,11 +369,11 @@ func greedyFill(blocks []block, target int) [][]block {
 	return cols
 }
 
-func totalHeight(blocks []block) int {
+func totalHeight(blocks []block, gap int) int {
 	t := 0
 	for i, b := range blocks {
 		if i > 0 {
-			t++ // separator
+			t += gap // separator
 		}
 		t += b.height
 	}
@@ -365,9 +397,9 @@ func ceilDiv(a, b int) int {
 	return (a + b - 1) / b
 }
 
-// renderColumn stacks a column's blocks with blank separators, left-aligned to
-// the column's widest block.
-func renderColumn(blocks []block) string {
+// renderColumn stacks a column's blocks with gap blank separators between them,
+// left-aligned to the column's widest block.
+func renderColumn(blocks []block, gap int) string {
 	w := 0
 	for _, b := range blocks {
 		if b.width > w {
@@ -377,7 +409,9 @@ func renderColumn(blocks []block) string {
 	var lines []string
 	for i, b := range blocks {
 		if i > 0 {
-			lines = append(lines, "")
+			for j := 0; j < gap; j++ {
+				lines = append(lines, "")
+			}
 		}
 		lines = append(lines, b.lines...)
 	}
@@ -456,15 +490,14 @@ func RenderLongWith(song *chordpro.Song, width int, th *Theme, opts RenderOpts) 
 	}
 	// Center the body so the song sits in the middle of wide screens with
 	// margins either side; text inside each block stays left-aligned.
-	body := packColumns(buildBlocks(song, th), width, 1<<30) // huge cap => one column
-	body = lipgloss.PlaceHorizontal(width, lipgloss.Center, body)
+	cols := packColumns(buildBlocks(song, th), width, 1<<30, 1) // huge cap => one column
+	body := lipgloss.PlaceHorizontal(width, lipgloss.Center, renderCols(cols, 1))
 
 	var lines []string
 	if !opts.HideHeader {
 		header := lipgloss.PlaceHorizontal(width, lipgloss.Center, buildHeader(song, width, th))
-		lines = append(lines, "") // blank line above the title
 		lines = append(lines, strings.Split(header, "\n")...)
-		lines = append(lines, "")
+		lines = append(lines, "") // blank line between header and body
 	}
 	lines = append(lines, strings.Split(body, "\n")...)
 	return lines

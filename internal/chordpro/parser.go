@@ -33,6 +33,9 @@ func Parse(r io.Reader) (*Song, error) {
 			cur = &Section{Kind: kind, Label: label}
 		}
 	}
+	// inEnv is true between an explicit {start_of_*} and its {end_of_*}; inside
+	// such a block blank lines are kept rather than splitting the section.
+	inEnv := false
 
 	for sc.Scan() {
 		raw := sc.Text()
@@ -64,30 +67,56 @@ func Parse(r io.Reader) (*Song, error) {
 				song.Capo = val
 			case "tempo":
 				song.Tempo = val
-			case "time":
+			case "bpm":
+				song.BPM = val
+			case "time", "time_signature":
 				song.Time = val
 			case "year":
 				song.Year = val
+			case "tuning":
+				song.Tuning = val
 			case "duration", "length":
 				song.Duration = parseDuration(val)
+			case "define":
+				if d, ok := parseDefine(val); ok {
+					if song.Defines == nil {
+						song.Defines = make(map[string]ChordDefinition)
+					}
+					song.Defines[d.Name] = d
+				}
 
 			case "start_of_chorus", "soc":
 				flush()
 				cur = &Section{Kind: KindChorus, Label: orDefault(val, "Chorus")}
+				inEnv = true
 			case "start_of_verse", "sov":
 				flush()
 				cur = &Section{Kind: KindVerse, Label: val}
+				inEnv = true
 			case "start_of_bridge", "sob":
 				flush()
 				cur = &Section{Kind: KindBridge, Label: orDefault(val, "Bridge")}
+				inEnv = true
 			case "start_of_tab", "sot":
 				flush()
 				cur = &Section{Kind: KindTab, Label: orDefault(val, "Tab")}
+				inEnv = true
+			case "start_of_intro", "soi":
+				flush()
+				cur = &Section{Kind: KindIntro, Label: orDefault(val, "Intro")}
+				inEnv = true
+			case "start_of_outro", "soo":
+				flush()
+				cur = &Section{Kind: KindOutro, Label: orDefault(val, "Outro")}
+				inEnv = true
 			case "end_of_chorus", "eoc",
 				"end_of_verse", "eov",
 				"end_of_bridge", "eob",
-				"end_of_tab", "eot":
+				"end_of_tab", "eot",
+				"end_of_intro", "eoi",
+				"end_of_outro", "eoo":
 				flush()
+				inEnv = false
 
 			case "comment", "c", "comment_italic", "ci":
 				ensure(KindVerse, "")
@@ -99,9 +128,14 @@ func Parse(r io.Reader) (*Song, error) {
 			continue
 		}
 
-		// Blank line: ends the current section so paragraphs stay separated.
+		// Blank line: inside an explicit environment keep it as spacing; loose
+		// (un-bracketed) paragraphs are split into separate sections instead.
 		if trimmed == "" {
-			flush()
+			if inEnv && cur != nil {
+				cur.Lines = append(cur.Lines, Line{})
+			} else {
+				flush()
+			}
 			continue
 		}
 
@@ -149,6 +183,57 @@ func parseDirective(line string) (name, value string, ok bool) {
 		return "", "", false
 	}
 	return name, value, true
+}
+
+// parseDefine parses a {define} body such as
+// "Am base-fret 1 frets x 0 2 2 1 0" into a ChordDefinition. It understands the
+// "base-fret"/"base_fret" and "frets" keywords; a "fingers" section (and any
+// other trailing tokens) is ignored. Returns ok=false if no chord name or fret
+// list is found.
+func parseDefine(val string) (ChordDefinition, bool) {
+	fields := strings.Fields(val)
+	if len(fields) == 0 {
+		return ChordDefinition{}, false
+	}
+	d := ChordDefinition{Name: fields[0], BaseFret: 1}
+	i := 1
+	for i < len(fields) {
+		switch strings.ToLower(fields[i]) {
+		case "base-fret", "base_fret", "basefret":
+			if i+1 < len(fields) {
+				if n, err := strconv.Atoi(fields[i+1]); err == nil {
+					d.BaseFret = n
+				}
+				i += 2
+				continue
+			}
+		case "frets":
+			i++
+			for i < len(fields) {
+				tok := fields[i]
+				if strings.EqualFold(tok, "fingers") {
+					break
+				}
+				switch tok {
+				case "x", "X", "N", "n":
+					d.Frets = append(d.Frets, -1)
+				default:
+					if n, err := strconv.Atoi(tok); err == nil {
+						d.Frets = append(d.Frets, n)
+					} else {
+						d.Frets = append(d.Frets, -1)
+					}
+				}
+				i++
+			}
+			continue
+		}
+		i++
+	}
+	if len(d.Frets) == 0 {
+		return ChordDefinition{}, false
+	}
+	return d, true
 }
 
 // parseSegments splits a lyric line into chord/text segments. Text before the
