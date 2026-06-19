@@ -87,27 +87,27 @@ func Parse(r io.Reader) (*Song, error) {
 
 			case "start_of_chorus", "soc":
 				flush()
-				cur = &Section{Kind: KindChorus, Label: orDefault(val, "Chorus")}
+				cur = &Section{Kind: KindChorus, Label: sectionLabel(val, "Chorus")}
 				inEnv = true
 			case "start_of_verse", "sov":
 				flush()
-				cur = &Section{Kind: KindVerse, Label: val}
+				cur = &Section{Kind: KindVerse, Label: sectionLabel(val, "")}
 				inEnv = true
 			case "start_of_bridge", "sob":
 				flush()
-				cur = &Section{Kind: KindBridge, Label: orDefault(val, "Bridge")}
+				cur = &Section{Kind: KindBridge, Label: sectionLabel(val, "Bridge")}
 				inEnv = true
 			case "start_of_tab", "sot":
 				flush()
-				cur = &Section{Kind: KindTab, Label: orDefault(val, "Tab")}
+				cur = &Section{Kind: KindTab, Label: sectionLabel(val, "Tab")}
 				inEnv = true
 			case "start_of_intro", "soi":
 				flush()
-				cur = &Section{Kind: KindIntro, Label: orDefault(val, "Intro")}
+				cur = &Section{Kind: KindIntro, Label: sectionLabel(val, "Intro")}
 				inEnv = true
 			case "start_of_outro", "soo":
 				flush()
-				cur = &Section{Kind: KindOutro, Label: orDefault(val, "Outro")}
+				cur = &Section{Kind: KindOutro, Label: sectionLabel(val, "Outro")}
 				inEnv = true
 			case "end_of_chorus", "eoc",
 				"end_of_verse", "eov",
@@ -118,7 +118,8 @@ func Parse(r io.Reader) (*Song, error) {
 				flush()
 				inEnv = false
 
-			case "comment", "c", "comment_italic", "ci":
+			case "comment", "c", "comment_italic", "ci",
+				"comment_box", "cb", "highlight":
 				ensure(KindVerse, "")
 				cur.Lines = append(cur.Lines, Line{Comment: val})
 
@@ -164,6 +165,12 @@ func ParseString(s string) (*Song, error) {
 
 // parseDirective extracts a {name} or {name: value} directive from a line that
 // consists solely of that brace expression. Returns ok=false otherwise.
+//
+// The name is separated from its argument by a colon and/or whitespace
+// (ChordPro §5). '=' is NOT a separator: it introduces attribute values such as
+// label="Verse 1", so splitting the name on it would mangle attribute-form
+// directives — the value is returned whole for the caller to parse (see
+// parseAttrs).
 func parseDirective(line string) (name, value string, ok bool) {
 	if !strings.HasPrefix(line, "{") || !strings.HasSuffix(line, "}") {
 		return "", "", false
@@ -173,9 +180,10 @@ func parseDirective(line string) (name, value string, ok bool) {
 		// Nested braces: not a clean directive line.
 		return "", "", false
 	}
-	if i := strings.IndexAny(inner, ":="); i >= 0 {
+	if i := strings.IndexAny(inner, ": \t"); i >= 0 {
 		name = strings.TrimSpace(inner[:i])
-		value = strings.TrimSpace(inner[i+1:])
+		rest := strings.TrimLeft(inner[i:], " \t")
+		value = strings.TrimSpace(strings.TrimPrefix(rest, ":"))
 	} else {
 		name = strings.TrimSpace(inner)
 	}
@@ -183,6 +191,77 @@ func parseDirective(line string) (name, value string, ok bool) {
 		return "", "", false
 	}
 	return name, value, true
+}
+
+// sectionLabel resolves the display label for a section start directive. It
+// accepts the attribute form ({start_of_verse: label="Verse 1"}) and the
+// bare-argument form ({start_of_verse: Verse 1}); an empty argument falls back
+// to def.
+func sectionLabel(val, def string) string {
+	if attrs := parseAttrs(val); attrs != nil {
+		if l := strings.TrimSpace(attrs["label"]); l != "" {
+			return l
+		}
+		return def
+	}
+	if v := strings.TrimSpace(val); v != "" {
+		return v
+	}
+	return def
+}
+
+// parseAttrs parses HTML-style attributes — key="value", key='value', or bare
+// key=value — from a directive argument (ChordPro §5). It returns nil when the
+// argument is not in attribute form (e.g. a bare "Verse 1"), so callers can
+// treat the whole argument as a single positional value instead.
+func parseAttrs(s string) map[string]string {
+	s = strings.TrimSpace(s)
+	if !strings.Contains(s, "=") {
+		return nil
+	}
+	attrs := map[string]string{}
+	i, n := 0, len(s)
+	for i < n {
+		for i < n && (s[i] == ' ' || s[i] == '\t') {
+			i++
+		}
+		if i >= n {
+			break
+		}
+		start := i
+		for i < n && s[i] != '=' && s[i] != ' ' && s[i] != '\t' {
+			i++
+		}
+		key := s[start:i]
+		if key == "" || i >= n || s[i] != '=' {
+			return nil // not a clean attribute list; treat as a bare argument
+		}
+		i++ // consume '='
+		var val string
+		if i < n && (s[i] == '"' || s[i] == '\'') {
+			q := s[i]
+			i++
+			vstart := i
+			for i < n && s[i] != q {
+				i++
+			}
+			val = s[vstart:i]
+			if i < n {
+				i++ // consume the closing quote
+			}
+		} else {
+			vstart := i
+			for i < n && s[i] != ' ' && s[i] != '\t' {
+				i++
+			}
+			val = s[vstart:i]
+		}
+		attrs[key] = val
+	}
+	if len(attrs) == 0 {
+		return nil
+	}
+	return attrs
 }
 
 // parseDefine parses a {define} body such as
@@ -237,19 +316,23 @@ func parseDefine(val string) (ChordDefinition, bool) {
 }
 
 // parseSegments splits a lyric line into chord/text segments. Text before the
-// first chord becomes a leading chord-less segment.
+// first chord becomes a leading chord-less segment. A bracket whose first
+// character is '*' is an annotation ([*Riff x2]): the '*' is dropped and the
+// rest is carried verbatim in the chord position, never parsed or transposed.
 func parseSegments(line string) []Segment {
 	var segs []Segment
 	var text strings.Builder
 	pendingChord := ""
+	pendingAnnot := ""
 
 	flushText := func() {
-		// Emit a segment only when it carries a chord or some text; this avoids
+		// Emit a segment only when it carries a marker or some text; this avoids
 		// a spurious empty segment when a line begins with a chord.
-		if text.Len() > 0 || pendingChord != "" {
-			segs = append(segs, Segment{Chord: pendingChord, Text: text.String()})
+		if text.Len() > 0 || pendingChord != "" || pendingAnnot != "" {
+			segs = append(segs, Segment{Chord: pendingChord, Annotation: pendingAnnot, Text: text.String()})
 		}
 		pendingChord = ""
+		pendingAnnot = ""
 		text.Reset()
 	}
 
@@ -265,10 +348,15 @@ func parseSegments(line string) []Segment {
 				i++
 				continue
 			}
-			// Close out the text accumulated for the previous chord, then start
-			// a new segment headed by this chord.
+			// Close out the text accumulated for the previous marker, then start
+			// a new segment headed by this chord or annotation.
 			flushText()
-			pendingChord = strings.TrimSpace(line[i+1 : i+end])
+			inner := strings.TrimSpace(line[i+1 : i+end])
+			if strings.HasPrefix(inner, "*") {
+				pendingAnnot = strings.TrimSpace(inner[1:])
+			} else {
+				pendingChord = inner
+			}
 			i += end + 1
 		case ']':
 			// Stray closing bracket: literal.
@@ -309,11 +397,4 @@ func parseDuration(v string) time.Duration {
 
 func normDirective(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
-}
-
-func orDefault(v, def string) string {
-	if strings.TrimSpace(v) == "" {
-		return def
-	}
-	return v
 }

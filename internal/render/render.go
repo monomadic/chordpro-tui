@@ -187,7 +187,7 @@ func renderLine(ln chordpro.Line, kind chordpro.SectionKind, th *Theme) []string
 	lyricRow = strings.TrimRight(lyricRow, " ")
 
 	var out []string
-	if ln.HasChords() {
+	if ln.HasMarkers() {
 		out = append(out, styleChordRow(ln.Segments, th))
 	}
 	out = append(out, th.Lyric.Render(lyricRow))
@@ -195,20 +195,25 @@ func renderLine(ln chordpro.Line, kind chordpro.SectionKind, th *Theme) []string
 }
 
 // styleChordRow builds the chord row with each chord individually styled, so
-// the background hugs each chord as a pill. It reproduces alignChords' spacing
-// exactly, so chords stay aligned with the lyric row below.
+// the background hugs each chord as a pill. Annotations ([*...]) sit in the same
+// row but are rendered as plain italic text, not pills. It reproduces
+// alignChords' spacing exactly, so markers stay aligned with the lyric row.
 func styleChordRow(segs []chordpro.Segment, th *Theme) string {
 	var b strings.Builder
 	chordVis, lyricVis := 0, 0
 	for _, seg := range segs {
-		if seg.Chord != "" {
+		if mk, annot := seg.Marker(); mk != "" {
 			if gap := lyricVis - chordVis; gap > 0 {
 				b.WriteString(strings.Repeat(" ", gap))
 				chordVis += gap
 			}
-			b.WriteString(th.Chord.Render(seg.Chord))
-			chordVis += runeLen(seg.Chord)
-			b.WriteByte(' ') // unstyled separator between pills
+			if annot {
+				b.WriteString(th.Annotation.Render(mk))
+			} else {
+				b.WriteString(th.Chord.Render(mk))
+			}
+			chordVis += runeLen(mk)
+			b.WriteByte(' ') // unstyled separator between markers
 			chordVis++
 		}
 		lyricVis += runeLen(seg.Text)
@@ -220,21 +225,22 @@ func styleChordRow(segs []chordpro.Segment, th *Theme) string {
 }
 
 // alignChords builds the plain (unstyled) chord and lyric rows for a line,
-// positioning each chord directly above the syllable it applies to.
+// positioning each marker (chord or annotation) directly above the syllable it
+// applies to.
 func alignChords(segs []chordpro.Segment) (chordRow, lyricRow string) {
 	var chord, lyric strings.Builder
 	for _, seg := range segs {
-		if seg.Chord != "" {
+		if mk, _ := seg.Marker(); mk != "" {
 			// Pad the chord row out to the current lyric position.
 			if gap := runeLen(lyric.String()) - runeLen(chord.String()); gap > 0 {
 				chord.WriteString(strings.Repeat(" ", gap))
 			}
-			chord.WriteString(seg.Chord)
-			chord.WriteByte(' ') // keep adjacent chords from touching
+			chord.WriteString(mk)
+			chord.WriteByte(' ') // keep adjacent markers from touching
 		}
 		lyric.WriteString(seg.Text)
-		// If the chord overhangs its syllable, push following lyrics right so
-		// the next chord still lands in the right place.
+		// If the marker overhangs its syllable, push following lyrics right so
+		// the next marker still lands in the right place.
 		if gap := runeLen(chord.String()) - runeLen(lyric.String()); gap > 0 {
 			lyric.WriteString(strings.Repeat(" ", gap))
 		}

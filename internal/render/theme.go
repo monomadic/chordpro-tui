@@ -209,37 +209,39 @@ type Theme struct {
 	Name string
 	P    Palette
 
-	Chord     lipgloss.Style
-	Lyric     lipgloss.Style
-	Title     lipgloss.Style
-	Subtitle  lipgloss.Style
-	Section   lipgloss.Style
-	Comment   lipgloss.Style
-	Tab       lipgloss.Style
-	Frame     lipgloss.Style
-	PillKey   lipgloss.Style
-	PillVal   lipgloss.Style
-	ChorusBar lipgloss.Style
-	Muted     lipgloss.Style
+	Chord      lipgloss.Style
+	Annotation lipgloss.Style
+	Lyric      lipgloss.Style
+	Title      lipgloss.Style
+	Subtitle   lipgloss.Style
+	Section    lipgloss.Style
+	Comment    lipgloss.Style
+	Tab        lipgloss.Style
+	Frame      lipgloss.Style
+	PillKey    lipgloss.Style
+	PillVal    lipgloss.Style
+	ChorusBar  lipgloss.Style
+	Muted      lipgloss.Style
 }
 
 // NewTheme compiles a Palette into ready-to-use styles.
 func NewTheme(p Palette) *Theme {
 	return &Theme{
-		Name:      p.Name,
-		P:         p,
-		Chord:     lipgloss.NewStyle().Foreground(p.Chord).Background(p.ChordBg).Bold(true),
-		Lyric:     lipgloss.NewStyle().Foreground(p.Lyric),
-		Title:     lipgloss.NewStyle().Foreground(p.Title).Bold(true),
-		Subtitle:  lipgloss.NewStyle().Foreground(p.Subtitle).Italic(true),
-		Section:   lipgloss.NewStyle().Foreground(p.Section).Bold(true).Italic(true),
-		Comment:   lipgloss.NewStyle().Foreground(p.Comment).Italic(true),
-		Tab:       lipgloss.NewStyle().Foreground(p.Tab),
-		Frame:     lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Border).Padding(0, 2),
-		PillKey:   lipgloss.NewStyle().Background(p.PillBg).Foreground(p.Section).Bold(true).Padding(0, 1),
-		PillVal:   lipgloss.NewStyle().Background(p.PillBg).Foreground(p.PillFg).Padding(0, 1),
-		ChorusBar: lipgloss.NewStyle().Foreground(p.Chorus),
-		Muted:     lipgloss.NewStyle().Foreground(p.Muted),
+		Name:       p.Name,
+		P:          p,
+		Chord:      lipgloss.NewStyle().Foreground(p.Chord).Background(p.ChordBg).Bold(true),
+		Annotation: lipgloss.NewStyle().Foreground(p.Comment).Italic(true),
+		Lyric:      lipgloss.NewStyle().Foreground(p.Lyric),
+		Title:      lipgloss.NewStyle().Foreground(p.Title).Bold(true),
+		Subtitle:   lipgloss.NewStyle().Foreground(p.Subtitle).Italic(true),
+		Section:    lipgloss.NewStyle().Foreground(p.Section).Bold(true).Italic(true),
+		Comment:    lipgloss.NewStyle().Foreground(p.Comment).Italic(true),
+		Tab:        lipgloss.NewStyle().Foreground(p.Tab),
+		Frame:      lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Border).Padding(0, 2),
+		PillKey:    lipgloss.NewStyle().Background(p.PillBg).Foreground(p.Section).Bold(true).Padding(0, 1),
+		PillVal:    lipgloss.NewStyle().Background(p.PillBg).Foreground(p.PillFg).Padding(0, 1),
+		ChorusBar:  lipgloss.NewStyle().Foreground(p.Chorus),
+		Muted:      lipgloss.NewStyle().Foreground(p.Muted),
 	}
 }
 

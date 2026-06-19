@@ -116,23 +116,34 @@ type Line struct {
 	Segments []Segment
 }
 
-// IsBlank reports whether the line has no chords, text, or comment.
+// IsBlank reports whether the line has no chords, annotations, text, or comment.
 func (l Line) IsBlank() bool {
 	if l.Comment != "" {
 		return false
 	}
 	for _, s := range l.Segments {
-		if s.Chord != "" || s.Text != "" {
+		if s.Chord != "" || s.Annotation != "" || s.Text != "" {
 			return false
 		}
 	}
 	return true
 }
 
-// HasChords reports whether any segment carries a chord.
+// HasChords reports whether any segment carries a (real, transposable) chord.
 func (l Line) HasChords() bool {
 	for _, s := range l.Segments {
 		if s.Chord != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// HasMarkers reports whether any segment has something to show in the chord
+// position — a chord or an annotation — so a chord row should be rendered.
+func (l Line) HasMarkers() bool {
+	for _, s := range l.Segments {
+		if s.Chord != "" || s.Annotation != "" {
 			return true
 		}
 	}
@@ -151,8 +162,22 @@ func (l Line) PlainText() string {
 	return string(b)
 }
 
-// Segment is a chord followed by the text it applies to. Either may be empty.
+// Segment is a chord (or annotation) followed by the text it applies to. Any
+// field may be empty. A segment carries at most one of Chord/Annotation.
 type Segment struct {
 	Chord string
-	Text  string
+	// Annotation is a bracketed performance note ([*Riff x2]): shown verbatim in
+	// the chord position, but never transposed or rendered as a chord diagram.
+	Annotation string
+	Text       string
+}
+
+// Marker returns the text shown in the chord position above the lyric — the
+// chord, or an annotation — and whether it is an annotation (printed verbatim,
+// never transposed or diagrammed).
+func (s Segment) Marker() (text string, annotation bool) {
+	if s.Annotation != "" {
+		return s.Annotation, true
+	}
+	return s.Chord, false
 }

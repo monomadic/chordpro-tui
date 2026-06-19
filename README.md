@@ -138,11 +138,18 @@ editor the song is reloaded automatically, preserving your transpose and theme.
 
 Directives: `title`/`t`, `subtitle`/`st`, `artist`, `composer`, `album`, `key`,
 `capo`, `tempo`, `bpm`, `time`/`time_signature`, `year`, `tuning`,
-`duration`/`length`, `comment`/`c`, `define`, and the `start_of_*`/`end_of_*`
-(and `soc`/`sov`/`sob`/`sot`/`soi`/`soo`) environments for choruses, verses,
-bridges, tab blocks, intros, and outros. Inline `[chord]` markup is positioned
-over the syllable that follows it.
+`duration`/`length`, `comment`/`c`/`comment_italic`/`comment_box`/`highlight`,
+`define`, and the `start_of_*`/`end_of_*` (and `soc`/`sov`/`sob`/`sot`/`soi`/`soo`)
+environments for choruses, verses, bridges, tab blocks, intros, and outros.
+Inline `[chord]` markup is positioned over the syllable that follows it.
 
+- A directive's argument may be a bare value (`{start_of_verse: Verse 1}`) or
+  HTML-style attributes (`{start_of_verse: label="Verse 1"}`, single or double
+  quotes, with or without the colon). Section `label=` attributes set the
+  section heading.
+- `[*…]` brackets are **annotations** (`[*Riff x2]`, `[*N.C.]`): the `*` is
+  dropped and the text is shown in the chord position verbatim — never
+  transposed or drawn as a chord shape.
 - `bpm` drives the scroll/sync speed; when both are present `bpm` wins and the
   TEMPO pill shows it, so a word `tempo` like `Allegro` doesn't break pacing.
 - `define` chord fingerings override the built-in shapes in the chord sheet
@@ -150,7 +157,9 @@ over the syllable that follows it.
 - Blank lines **inside** a `start_of_*`/`end_of_*` block are kept as spacing;
   loose (un-bracketed) paragraphs still split on blank lines.
 
-Unknown directives are ignored; `#` lines are source comments.
+Unknown directives are ignored; `#` lines are source comments. Conditional
+selectors (`{comment-guitar: …}`), `{chorus}` recall, `{transpose}`, grids, and
+non-European note systems are not yet interpreted.
 
 ## Project layout
 

@@ -159,3 +159,69 @@ func TestLooseBlankStillSplits(t *testing.T) {
 		t.Errorf("loose paragraphs should split on blank lines, got %d sections", len(s.Sections))
 	}
 }
+
+func TestSectionLabelAttribute(t *testing.T) {
+	cases := []struct {
+		src  string
+		want string
+	}{
+		{`{start_of_verse: label="Verse 1"}`, "Verse 1"}, // colon + double quote
+		{`{start_of_verse label="Verse 2"}`, "Verse 2"},  // whitespace separator
+		{`{start_of_verse: label='Verse 3'}`, "Verse 3"}, // single quote
+		{`{start_of_verse: Bridge Riff}`, "Bridge Riff"}, // bare argument
+		{`{start_of_verse}`, ""},                         // unlabelled
+	}
+	for _, c := range cases {
+		s, err := ParseString(c.src + "\n[G]x\n{end_of_verse}\n")
+		if err != nil {
+			t.Fatalf("%s: %v", c.src, err)
+		}
+		if len(s.Sections) == 0 {
+			t.Fatalf("%s: no sections", c.src)
+		}
+		if got := s.Sections[0].Label; got != c.want {
+			t.Errorf("%s -> label %q, want %q", c.src, got, c.want)
+		}
+	}
+}
+
+func TestParseDirectiveDoesNotSplitOnEquals(t *testing.T) {
+	// '=' introduces an attribute value, not the name/value boundary.
+	name, val, ok := parseDirective(`{start_of_chorus: label="A B"}`)
+	if !ok || name != "start_of_chorus" || val != `label="A B"` {
+		t.Errorf("parseDirective = (%q, %q, %v)", name, val, ok)
+	}
+}
+
+func TestParseAnnotation(t *testing.T) {
+	segs := parseSegments("[*Riff x2] [C]word [*N.C.]more")
+	if segs[0].Annotation != "Riff x2" || segs[0].Chord != "" {
+		t.Errorf("seg0 = %+v, want annotation %q", segs[0], "Riff x2")
+	}
+	if segs[1].Chord != "C" || segs[1].Annotation != "" {
+		t.Errorf("seg1 = %+v, want chord C", segs[1])
+	}
+	// The annotation segment must report a marker so a chord row is rendered.
+	if !(Line{Segments: segs}).HasMarkers() {
+		t.Error("line with an annotation should HasMarkers()")
+	}
+}
+
+func TestAnnotationNotTransposed(t *testing.T) {
+	// "[*Coda]" must not transpose like a C-rooted chord (-> "Doda").
+	s, _ := ParseString("[*Coda] [C]word\n")
+	out := s.Transposed(2)
+	seg := out.Sections[0].Lines[0].Segments[0]
+	if seg.Annotation != "Coda" {
+		t.Errorf("annotation transposed/mangled: %q", seg.Annotation)
+	}
+}
+
+func TestCommentVariants(t *testing.T) {
+	for _, d := range []string{"highlight", "comment_box", "cb"} {
+		s, _ := ParseString("{" + d + ": Note here}\n[C]x\n")
+		if len(s.Sections) == 0 || s.Sections[0].Lines[0].Comment != "Note here" {
+			t.Errorf("{%s} did not produce a visible comment: %+v", d, s.Sections)
+		}
+	}
+}
