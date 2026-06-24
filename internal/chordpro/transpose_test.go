@@ -1,6 +1,7 @@
 package chordpro
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -38,14 +39,14 @@ func TestTransposeFixedSpelling(t *testing.T) {
 	cases := []struct {
 		chord, want string
 	}{
-		{"C", "C#"},  // C#, not Db
-		{"D", "Eb"},  // Eb, not D#
-		{"F", "F#"},  // F#, not Gb
-		{"G", "G#"},  // G#, not Ab
-		{"A", "Bb"},  // Bb, not A#
-		{"Db", "D"},  // up a semitone from Db
-		{"A#", "B"},  // input sharp accidental still parses
-		{"Gb", "G"},  // input flat accidental still parses
+		{"C", "C#"}, // C#, not Db
+		{"D", "Eb"}, // Eb, not D#
+		{"F", "F#"}, // F#, not Gb
+		{"G", "G#"}, // G#, not Ab
+		{"A", "Bb"}, // Bb, not A#
+		{"Db", "D"}, // up a semitone from Db
+		{"A#", "B"}, // input sharp accidental still parses
+		{"Gb", "G"}, // input flat accidental still parses
 	}
 	for _, c := range cases {
 		if got := transposeChord(c.chord, 1); got != c.want {
@@ -83,11 +84,11 @@ func TestTransposeNonChordUnchanged(t *testing.T) {
 
 func TestTransposeKey(t *testing.T) {
 	cases := map[string]string{
-		"C":  "C#", // +1
-		"A":  "Bb", // wraps to the fixed flat
-		"D":  "Eb",
-		"G":  "G#",
-		"F":  "F#",
+		"C": "C#", // +1
+		"A": "Bb", // wraps to the fixed flat
+		"D": "Eb",
+		"G": "G#",
+		"F": "F#",
 	}
 	for in, want := range cases {
 		if got := TransposeKey(in, 1); got != want {
@@ -121,6 +122,64 @@ func TestTransposedSongPropagates(t *testing.T) {
 	// Original must be untouched.
 	if song.Sections[0].Lines[0].Segments[0].Chord != "G" {
 		t.Error("transpose mutated the original song")
+	}
+}
+
+func TestAlternateTuningTitle(t *testing.T) {
+	cases := []struct {
+		title string
+		n     int
+		want  string
+	}{
+		{"Stolen Car", 1, "Stolen Car (Alternate Tuning: +1)"},
+		{"Stolen Car", -4, "Stolen Car (Alternate Tuning: -4)"},
+		{"", 2, "(Alternate Tuning: +2)"},
+	}
+	for _, c := range cases {
+		if got := AlternateTuningTitle(c.title, c.n); got != c.want {
+			t.Errorf("AlternateTuningTitle(%q, %d) = %q, want %q", c.title, c.n, got, c.want)
+		}
+	}
+}
+
+func TestTransposeSource(t *testing.T) {
+	src := `{title: Stolen Car}
+{key: Em}
+{capo: 2}
+# editor note
+{comment: Intro}
+{define: Em base-fret 1 frets 0 2 2 0 0 0}
+[Em]Stolen [G]car [*let ring]
+{start_of_tab}
+e|--0--2--|
+{end_of_tab}
+`
+	got := TransposeSource(src, 2, AlternateTuningTitle("Stolen Car", 2))
+
+	mustContain := []string{
+		"{title: Stolen Car (Alternate Tuning: +2)}", // title replaced
+		"{key: F#m}",       // key transposed
+		"{capo: 2}",        // capo untouched
+		"# editor note",    // remark preserved
+		"{comment: Intro}", // comment preserved
+		"{define: Em base-fret 1 frets 0 2 2 0 0 0}", // define preserved
+		"[F#m]Stolen [A]car [*let ring]",             // chords transposed, annotation kept
+		"e|--0--2--|",                                // tab content verbatim (not transposed)
+	}
+	for _, want := range mustContain {
+		if !strings.Contains(got, want) {
+			t.Errorf("transposed source missing %q\n---\n%s", want, got)
+		}
+	}
+}
+
+func TestTransposeSourcePrependsTitle(t *testing.T) {
+	got := TransposeSource("[C]hi\n", 2, "New (Alternate Tuning: +2)")
+	if !strings.HasPrefix(got, "{title: New (Alternate Tuning: +2)}\n") {
+		t.Errorf("title not prepended when source had none:\n%s", got)
+	}
+	if !strings.Contains(got, "[D]hi") {
+		t.Errorf("chord not transposed: %q", got)
 	}
 }
 

@@ -41,6 +41,90 @@ func (s *Song) Transposed(n int) *Song {
 	return &out
 }
 
+// SignedSemitones formats a transpose offset with an explicit sign, e.g.
+// +3 or -2.
+func SignedSemitones(n int) string { return signedSemitones(n) }
+
+// AlternateTuningTitle appends the transpose offset to a song title, e.g.
+// "Stolen Car" with n=1 → "Stolen Car (Alternate Tuning: +1)".
+func AlternateTuningTitle(title string, n int) string {
+	return strings.TrimSpace(title + " (Alternate Tuning: " + signedSemitones(n) + ")")
+}
+
+// TransposeSource rewrites raw ChordPro text: every inline [chord] and the
+// {key} directive are shifted by n semitones, and the song title is replaced
+// with newTitle. Everything else — comments, {define}s, unknown directives,
+// tab/grid blocks, [*annotations], blank lines and formatting — is preserved
+// verbatim, so a saved copy stays faithful to the original. If the source has
+// no {title} directive, one is prepended.
+func TransposeSource(src string, n int, newTitle string) string {
+	lines := strings.Split(strings.ReplaceAll(src, "\r\n", "\n"), "\n")
+	out := make([]string, 0, len(lines)+1)
+	inVerbatim := false // inside a tab/grid block: no chord parsing
+	titleSeen := false
+	for _, raw := range lines {
+		trimmed := strings.TrimSpace(raw)
+		if name, val, ok := parseDirective(trimmed); ok {
+			switch normDirective(name) {
+			case "title", "t":
+				titleSeen = true
+				out = append(out, "{title: "+newTitle+"}")
+				continue
+			case "key":
+				out = append(out, "{key: "+TransposeKey(val, n)+"}")
+				continue
+			case "start_of_tab", "sot", "start_of_grid", "sog":
+				inVerbatim = true
+			case "end_of_tab", "eot", "end_of_grid", "eog":
+				inVerbatim = false
+			}
+			out = append(out, raw)
+			continue
+		}
+		if inVerbatim || strings.HasPrefix(trimmed, "#") {
+			out = append(out, raw) // verbatim block or source remark
+			continue
+		}
+		out = append(out, transposeLine(raw, n))
+	}
+	if !titleSeen && strings.TrimSpace(newTitle) != "" {
+		out = append([]string{"{title: " + newTitle + "}"}, out...)
+	}
+	return strings.Join(out, "\n")
+}
+
+// transposeLine shifts every [chord] in a lyric line by n semitones, leaving
+// the surrounding text, [*annotations] and empty brackets untouched.
+func transposeLine(line string, n int) string {
+	if !strings.ContainsRune(line, '[') {
+		return line
+	}
+	var b strings.Builder
+	i := 0
+	for i < len(line) {
+		if line[i] == '[' {
+			end := strings.IndexByte(line[i:], ']')
+			if end < 0 {
+				b.WriteString(line[i:]) // unterminated: leave the rest as-is
+				break
+			}
+			inner := strings.TrimSpace(line[i+1 : i+end])
+			if inner == "" || strings.HasPrefix(inner, "*") {
+				b.WriteString(line[i : i+end+1]) // empty or annotation: verbatim
+			} else {
+				b.WriteByte('[')
+				b.WriteString(transposeChord(inner, n))
+				b.WriteByte(']')
+			}
+			i += end + 1
+			continue
+		}
+		b.WriteByte(line[i])
+		i++
+	}
+	return b.String()
+}
+
 // TransposeKey shifts a key name (e.g. "G", "Am", "Bb") by n semitones,
 // preserving a trailing minor "m".
 func TransposeKey(key string, n int) string {

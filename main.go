@@ -164,6 +164,7 @@ Keys (interactive):
   h            toggle the title header
   [ / ]        transpose down / up        (fit mode)
   0            reset transpose
+  w            save a transposed copy alongside the original
   space        pause/resume scroll · play/pause sync
   g            restart sync timeline (jump to top)
   +/-          scroll speed / sync length (scroll & sync modes)

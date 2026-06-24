@@ -67,6 +67,11 @@ type Model struct {
 	hideHeader bool // hide the title/metadata header on song views
 
 	chords bool // showing the chord-shapes sheet overlay
+
+	// flash is a transient status message (e.g. "Saved …") shown on the bottom
+	// row until flashUntil passes.
+	flash      string
+	flashUntil time.Time
 }
 
 // Options configure the initial view state.
@@ -217,6 +222,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "e": // edit the current file in $EDITOR
 		if m.path != "" {
 			return m, editCmd(m.path)
+		}
+	case "w": // write a transposed copy alongside the original
+		if dst, err := m.saveTransposed(); err != nil {
+			m.setFlash("Save failed: " + err.Error())
+		} else {
+			m.setFlash("Saved → " + filepath.Base(dst))
 		}
 	case "n": // next song in this folder
 		m.loadSibling(1)
@@ -456,6 +467,56 @@ func siblingIndex(paths []string, path string) int {
 	return -1
 }
 
+// saveTransposed writes a transposed copy of the current song next to the
+// original: the file's chords and key are shifted by the active transpose, the
+// title gains an "(Alternate Tuning: ±n)" suffix, and the filename echoes it.
+// Returns the path written. It is a no-op (error) when there's nothing to save.
+func (m Model) saveTransposed() (string, error) {
+	if m.path == "" {
+		return "", fmt.Errorf("no source file")
+	}
+	if m.transp == 0 {
+		return "", fmt.Errorf("not transposed")
+	}
+	raw, err := os.ReadFile(m.path)
+	if err != nil {
+		return "", err
+	}
+	title := m.base.Title
+	if strings.TrimSpace(title) == "" {
+		title = strings.TrimSuffix(filepath.Base(m.path), filepath.Ext(m.path))
+	}
+	content := chordpro.TransposeSource(string(raw), m.transp, chordpro.AlternateTuningTitle(title, m.transp))
+	dst := alternatePath(m.path, m.transp)
+	if err := os.WriteFile(dst, []byte(content), 0o644); err != nil {
+		return "", err
+	}
+	return dst, nil
+}
+
+// alternatePath inserts an "(Alternate Tuning ±n)" tag before the extension of
+// path, e.g. "Stolen Car.cho" → "Stolen Car (Alternate Tuning +1).cho".
+func alternatePath(path string, n int) string {
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(filepath.Base(path), ext)
+	name := base + " (Alternate Tuning " + chordpro.SignedSemitones(n) + ")" + ext
+	return filepath.Join(filepath.Dir(path), name)
+}
+
+// setFlash shows msg on the bottom row for a couple of seconds.
+func (m *Model) setFlash(msg string) {
+	m.flash = msg
+	m.flashUntil = time.Now().Add(2500 * time.Millisecond)
+}
+
+// activeFlash returns the current flash message while it's still showing.
+func (m Model) activeFlash() string {
+	if m.flash != "" && time.Now().Before(m.flashUntil) {
+		return m.flash
+	}
+	return ""
+}
+
 // editCmd launches $EDITOR (or vi) on path, suspending the TUI until it exits.
 func editCmd(path string) tea.Cmd {
 	editor := os.Getenv("EDITOR")
@@ -518,6 +579,15 @@ func (m Model) View() string {
 		out = m.windowView(m.syncOffset(), m.progressBar())
 	default:
 		out = render.RenderWith(m.song, m.w, m.h, m.theme, render.RenderOpts{HideHeader: m.hideHeader})
+	}
+	// A transient save/status message takes over the bottom row (not over the
+	// picker/help/chords overlays, which own the whole screen).
+	if msg := m.activeFlash(); msg != "" && !m.picking && !m.helping && !m.chords {
+		lines := strings.Split(out, "\n")
+		if n := len(lines); n > 0 {
+			lines[n-1] = lipgloss.PlaceHorizontal(m.w, lipgloss.Center, m.theme.Section.Render(msg))
+		}
+		out = strings.Join(lines, "\n")
 	}
 	if m.bgFill {
 		out = render.ApplyBackground(out, m.w, m.theme.P.Bg)

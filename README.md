@@ -65,6 +65,7 @@ chordpro-tui < testdata/wagon_wheel.cho
 | `h`              | toggle the title header                            |
 | `[` / `]`        | transpose down / up (fit mode)                    |
 | `0`              | reset transpose                                   |
+| `w`              | save a transposed copy alongside the original     |
 | `space`          | pause/resume scroll · play/pause sync             |
 | `+` / `-`        | scroll speed (scroll) · song length (sync)        |
 | `↑`/`↓`, `j`/`k` | scroll a line / seek the timeline                 |
@@ -94,6 +95,14 @@ cycles the bundled themes — **Mocha, Tokyo Night, Gruvbox, Dracula, Nord** plu
 the neon set **Synthwave, Cyberpunk, Laser, Vapor** — and the footer shows the
 active theme (with its position in the cycle, e.g. `Synthwave 6/9`).
 
+`w` **saves a transposed copy** next to the original file: the chords and `{key}`
+are written out shifted by the current transpose, the title gains an
+`(Alternate Tuning: +N)` suffix, and the new filename echoes it
+(`Stolen Car - Beth Orton (Alternate Tuning +1).cho`). The rest of the file —
+comments, `{define}`s, tab blocks, annotations and formatting — is preserved
+verbatim. (Custom `{define}` shapes are kept as written; see the transpose
+caveat above.) A confirmation shows briefly on the bottom row.
+
 `B` toggles a **themed background fill** (also `-bg`): instead of the terminal's
 default background, the whole screen is painted with the theme's background
 color, with chord and metadata pills still standing out on top. Best with a
@@ -113,8 +122,9 @@ then a keypress away.
 (`.cho .chopro .chordpro .crd .pro .cp`) in the current song's folder. Rows are
 laid out in labelled columns — **title, artist, key, capo, tempo, year** (the
 metadata columns drop off, narrowest first, on small terminals) and file
-extensions are hidden. Type to filter by title (matched characters are
-highlighted), `↑`/`↓` to move, `enter` to open, `esc` to cancel.
+extensions are hidden. Type to filter by **title or artist** (matched characters
+are highlighted in whichever column they fall), `↑`/`↓` to move, `enter` to open,
+`esc` to cancel.
 
 Without opening the finder you can also jump straight between songs in the
 folder: `n` / `p` for next / previous (alphabetical, wrapping) and `r` for a
@@ -139,14 +149,17 @@ editor the song is reloaded automatically, preserving your transpose and theme.
 Directives: `title`/`t`, `subtitle`/`st`, `artist`, `composer`, `album`, `key`,
 `capo`, `tempo`, `bpm`, `time`/`time_signature`, `year`, `tuning`,
 `duration`/`length`, `comment`/`c`/`comment_italic`/`comment_box`/`highlight`,
-`define`, and the `start_of_*`/`end_of_*` (and `soc`/`sov`/`sob`/`sot`/`soi`/`soo`)
-environments for choruses, verses, bridges, tab blocks, intros, and outros.
-Inline `[chord]` markup is positioned over the syllable that follows it.
+`define`, and the `start_of_*`/`end_of_*` (and `soc`/`sov`/`sob`/`sot`/`soi`/`soo`/`sos`)
+environments for choruses, verses, bridges, tab blocks, intros, outros, and
+generic sections. Inline `[chord]` markup is positioned over the syllable that
+follows it.
 
-- A directive's argument may be a bare value (`{start_of_verse: Verse 1}`) or
-  HTML-style attributes (`{start_of_verse: label="Verse 1"}`, single or double
-  quotes, with or without the colon). Section `label=` attributes set the
-  section heading.
+- Each section prints a default heading (`VERSE`, `CHORUS`, `BRIDGE`, `TAB`,
+  `INTRO`, `OUTRO`, `SECTION`). A directive's argument may be a bare value
+  (`{start_of_verse: Verse 1}`) or HTML-style attributes
+  (`{start_of_verse: label="Verse 1"}`, single or double quotes, with or without
+  the colon); a `label=` (or bare argument) replaces the default heading text.
+  `{start_of_section: Intro}` is a generic labelled section.
 - `[*…]` brackets are **annotations** (`[*Riff x2]`, `[*N.C.]`): the `*` is
   dropped and the text is shown in the chord position verbatim — never
   transposed or drawn as a chord shape.

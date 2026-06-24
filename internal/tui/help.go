@@ -22,6 +22,7 @@ var helpGroups = []helpGroup{
 		{"n / p", "next / previous song"},
 		{"r", "random song"},
 		{"e", "edit in $EDITOR"},
+		{"w", "save transposed copy"},
 	}},
 	{"View", []helpRow{
 		{"s", "cycle fit / scroll / sync"},

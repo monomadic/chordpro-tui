@@ -169,7 +169,7 @@ func TestSectionLabelAttribute(t *testing.T) {
 		{`{start_of_verse label="Verse 2"}`, "Verse 2"},  // whitespace separator
 		{`{start_of_verse: label='Verse 3'}`, "Verse 3"}, // single quote
 		{`{start_of_verse: Bridge Riff}`, "Bridge Riff"}, // bare argument
-		{`{start_of_verse}`, ""},                         // unlabelled
+		{`{start_of_verse}`, "Verse"},                    // defaults to "Verse"
 	}
 	for _, c := range cases {
 		s, err := ParseString(c.src + "\n[G]x\n{end_of_verse}\n")
@@ -182,6 +182,56 @@ func TestSectionLabelAttribute(t *testing.T) {
 		if got := s.Sections[0].Label; got != c.want {
 			t.Errorf("%s -> label %q, want %q", c.src, got, c.want)
 		}
+	}
+}
+
+func TestSectionDefaultLabels(t *testing.T) {
+	cases := []struct {
+		dir  string
+		want string
+		kind SectionKind
+	}{
+		{"start_of_verse", "Verse", KindVerse},
+		{"start_of_chorus", "Chorus", KindChorus},
+		{"start_of_bridge", "Bridge", KindBridge},
+		{"start_of_tab", "Tab", KindTab},
+		{"start_of_section", "Section", KindOther},
+	}
+	for _, c := range cases {
+		s, err := ParseString("{" + c.dir + "}\n[G]x\n{end_of_section}\n")
+		if err != nil {
+			t.Fatalf("%s: %v", c.dir, err)
+		}
+		if len(s.Sections) == 0 {
+			t.Fatalf("%s: no sections", c.dir)
+		}
+		if got := s.Sections[0].Label; got != c.want {
+			t.Errorf("%s -> label %q, want %q", c.dir, got, c.want)
+		}
+		if got := s.Sections[0].Kind; got != c.kind {
+			t.Errorf("%s -> kind %d, want %d", c.dir, got, c.kind)
+		}
+	}
+}
+
+// Loose lyric lines (no explicit section directive) must not gain a heading.
+func TestLooseLyricsUnlabelled(t *testing.T) {
+	s, _ := ParseString("[G]just loose lyrics\n")
+	if len(s.Sections) == 0 {
+		t.Fatal("no sections")
+	}
+	if s.Sections[0].Label != "" {
+		t.Errorf("loose lyrics got a label %q, want none", s.Sections[0].Label)
+	}
+}
+
+func TestStartOfSection(t *testing.T) {
+	s, _ := ParseString("{start_of_section: Intro}\n[G]riff\n{end_of_section}\n")
+	if len(s.Sections) != 1 {
+		t.Fatalf("want 1 section, got %d", len(s.Sections))
+	}
+	if s.Sections[0].Label != "Intro" || s.Sections[0].Kind != KindOther {
+		t.Errorf("section = %+v", s.Sections[0])
 	}
 }
 

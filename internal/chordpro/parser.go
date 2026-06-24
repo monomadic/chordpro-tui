@@ -91,7 +91,7 @@ func Parse(r io.Reader) (*Song, error) {
 				inEnv = true
 			case "start_of_verse", "sov":
 				flush()
-				cur = &Section{Kind: KindVerse, Label: sectionLabel(val, "")}
+				cur = &Section{Kind: KindVerse, Label: sectionLabel(val, "Verse")}
 				inEnv = true
 			case "start_of_bridge", "sob":
 				flush()
@@ -109,12 +109,17 @@ func Parse(r io.Reader) (*Song, error) {
 				flush()
 				cur = &Section{Kind: KindOutro, Label: sectionLabel(val, "Outro")}
 				inEnv = true
+			case "start_of_section", "sos":
+				flush()
+				cur = &Section{Kind: KindOther, Label: sectionLabel(val, "Section")}
+				inEnv = true
 			case "end_of_chorus", "eoc",
 				"end_of_verse", "eov",
 				"end_of_bridge", "eob",
 				"end_of_tab", "eot",
 				"end_of_intro", "eoi",
-				"end_of_outro", "eoo":
+				"end_of_outro", "eoo",
+				"end_of_section", "eos":
 				flush()
 				inEnv = false
 

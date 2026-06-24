@@ -55,8 +55,9 @@ type pickEntry struct {
 }
 
 type pickMatch struct {
-	idx int          // index into picker.entries
-	pos map[int]bool // matched rune positions, for highlighting
+	idx       int          // index into picker.entries
+	pos       map[int]bool // matched rune positions in the title, for highlighting
+	artistPos map[int]bool // matched rune positions in the artist, for highlighting
 }
 
 // picker is the fuzzy "open song" overlay state.
@@ -182,15 +183,29 @@ func (p *picker) refilter() {
 	}
 	var hits []scored
 	for i, e := range p.entries {
-		score, pos, ok := fuzzyMatch(p.query, e.title)
-		if !ok {
+		// Match against both title and artist; an entry is shown if either hits.
+		// The title drives the score (artist matches are biased slightly lower so
+		// a title hit outranks an artist-only hit for the same query), but matched
+		// characters are highlighted in whichever column they fall.
+		const artistBias = 2
+		var best int
+		matched := false
+		m := pickMatch{idx: i}
+		if score, pos, ok := fuzzyMatch(p.query, e.title); ok {
+			best, matched = score, true
+			m.pos = runeSet(pos)
+		}
+		if score, pos, ok := fuzzyMatch(p.query, e.artist); ok && e.artist != "" {
+			m.artistPos = runeSet(pos)
+			if s := score - artistBias; !matched || s > best {
+				best = s
+			}
+			matched = true
+		}
+		if !matched {
 			continue
 		}
-		set := make(map[int]bool, len(pos))
-		for _, x := range pos {
-			set[x] = true
-		}
-		hits = append(hits, scored{pickMatch{idx: i, pos: set}, score, strings.ToLower(e.title)})
+		hits = append(hits, scored{m, best, strings.ToLower(e.title)})
 	}
 	sort.SliceStable(hits, func(a, b int) bool {
 		if hits[a].score != hits[b].score {
@@ -271,6 +286,18 @@ func fuzzyMatch(query, target string) (int, []int, bool) {
 	}
 	score += 20 - len(t) // prefer shorter names
 	return score, pos, true
+}
+
+// runeSet turns a slice of matched positions into a set for O(1) lookup.
+func runeSet(pos []int) map[int]bool {
+	if len(pos) == 0 {
+		return nil
+	}
+	set := make(map[int]bool, len(pos))
+	for _, x := range pos {
+		set[x] = true
+	}
+	return set
 }
 
 func isBoundary(r rune) bool {
@@ -434,7 +461,7 @@ func (p *picker) renderRow(m pickMatch, selected bool, c pcols, th *render.Theme
 	b.WriteString(pointerSt.Render(pointer))
 	b.WriteString(styleCol([]rune(e.title), m.pos, c.title, titleSt, matchSt))
 	b.WriteString(sepSt.Render(" "))
-	b.WriteString(styleCol([]rune(e.artist), nil, c.artist, artistSt, artistSt))
+	b.WriteString(styleCol([]rune(e.artist), m.artistPos, c.artist, artistSt, matchSt))
 	col := func(val string, width int, st lipgloss.Style) {
 		if width <= 0 {
 			return

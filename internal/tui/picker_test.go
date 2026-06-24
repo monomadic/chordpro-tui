@@ -125,6 +125,39 @@ func TestPickerFilterAndSelect(t *testing.T) {
 	}
 }
 
+func TestPickerFiltersByArtist(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("one.cho", "{title: Stolen Car}\n{artist: Beth Orton}\n[C]hi\n")
+	write("two.cho", "{title: Wagon Wheel}\n{artist: Old Crow Medicine Show}\n[C]hi\n")
+
+	p := newPicker(dir, "")
+
+	// A query that appears only in an artist name still finds the song.
+	p.setQuery("orton")
+	sel, ok := p.selected()
+	if !ok || !strings.HasSuffix(sel, "one.cho") {
+		t.Errorf("artist query 'orton' selected %q (ok=%v), want one.cho", sel, ok)
+	}
+	if len(p.matches) != 1 {
+		t.Errorf("expected 1 match for 'orton', got %d", len(p.matches))
+	}
+	// Matched positions are recorded against the artist column for highlighting.
+	if p.matches[0].artistPos == nil {
+		t.Error("expected artist match positions to be highlighted")
+	}
+
+	// A title query keeps working.
+	p.setQuery("wagon")
+	if sel, ok := p.selected(); !ok || !strings.HasSuffix(sel, "two.cho") {
+		t.Errorf("title query 'wagon' selected %q (ok=%v), want two.cho", sel, ok)
+	}
+}
+
 func TestOpenPickerAndLoadSwitchesSong(t *testing.T) {
 	s, err := chordpro.ParseString("{title: Start}\n{key: C}\n[C]hi\n")
 	if err != nil {
