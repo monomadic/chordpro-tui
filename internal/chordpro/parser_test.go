@@ -1,6 +1,9 @@
 package chordpro
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestParseMetadataAndSections(t *testing.T) {
 	src := `{title: Test Song}
@@ -232,6 +235,62 @@ func TestStartOfSection(t *testing.T) {
 	}
 	if s.Sections[0].Label != "Intro" || s.Sections[0].Kind != KindOther {
 		t.Errorf("section = %+v", s.Sections[0])
+	}
+}
+
+func TestChorusRecall(t *testing.T) {
+	src := "{start_of_chorus}\n[C]la [G]la\n{end_of_chorus}\n" +
+		"{start_of_verse}\n[Am]verse\n{end_of_verse}\n" +
+		"{chorus}\n"
+	s, _ := ParseString(src)
+	if len(s.Sections) != 3 {
+		t.Fatalf("want 3 sections (chorus, verse, recalled chorus), got %d", len(s.Sections))
+	}
+	recalled := s.Sections[2]
+	if recalled.Kind != KindChorus {
+		t.Errorf("recalled section kind = %v, want chorus", recalled.Kind)
+	}
+	if recalled.Label != "Chorus" {
+		t.Errorf("recalled label = %q, want Chorus", recalled.Label)
+	}
+	if !reflect.DeepEqual(recalled.Lines, s.Sections[0].Lines) {
+		t.Errorf("recalled chorus content differs from original:\n%+v\nvs\n%+v",
+			recalled.Lines, s.Sections[0].Lines)
+	}
+	// The recalled copy must transpose along with the rest of the song.
+	tr := s.Transposed(2)
+	if got := tr.Sections[2].Lines[0].Segments[0].Chord; got != "D" {
+		t.Errorf("recalled chorus chord after +2 = %q, want D", got)
+	}
+	// ...without mutating the original chorus (independent backing slice).
+	if got := s.Sections[0].Lines[0].Segments[0].Chord; got != "C" {
+		t.Errorf("original chorus mutated by transpose: %q", got)
+	}
+}
+
+func TestChorusRecallWithLabel(t *testing.T) {
+	src := "{soc}\n[C]la\n{eoc}\n{chorus: Final Chorus}\n"
+	s, _ := ParseString(src)
+	if len(s.Sections) != 2 {
+		t.Fatalf("want 2 sections, got %d", len(s.Sections))
+	}
+	if s.Sections[1].Label != "Final Chorus" {
+		t.Errorf("relabelled recall = %q, want Final Chorus", s.Sections[1].Label)
+	}
+	// Attribute form works too.
+	s2, _ := ParseString("{soc}\n[C]la\n{eoc}\n{chorus: label=\"Outro\"}\n")
+	if s2.Sections[1].Label != "Outro" {
+		t.Errorf("attribute-form recall label = %q, want Outro", s2.Sections[1].Label)
+	}
+}
+
+func TestChorusRecallNoPreceding(t *testing.T) {
+	// {chorus} with no prior chorus inserts nothing.
+	s, _ := ParseString("[C]just a verse\n{chorus}\n")
+	for _, sec := range s.Sections {
+		if sec.Kind == KindChorus {
+			t.Errorf("unexpected chorus section from a dangling {chorus}: %+v", sec)
+		}
 	}
 }
 

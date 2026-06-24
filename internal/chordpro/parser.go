@@ -123,6 +123,18 @@ func Parse(r io.Reader) (*Song, error) {
 				flush()
 				inEnv = false
 
+			case "chorus":
+				// Recall: re-insert the most recent preceding chorus's content.
+				// {chorus: Label} (or label="…") re-labels the recalled copy;
+				// a bare {chorus} keeps the original chorus's label.
+				flush()
+				if src := lastChorus(song.Sections); src != nil {
+					rec := *src
+					rec.Lines = append([]Line(nil), src.Lines...)
+					rec.Label = sectionLabel(val, src.Label)
+					song.Sections = append(song.Sections, rec)
+				}
+
 			case "comment", "c", "comment_italic", "ci",
 				"comment_box", "cb", "highlight":
 				ensure(KindVerse, "")
@@ -196,6 +208,17 @@ func parseDirective(line string) (name, value string, ok bool) {
 		return "", "", false
 	}
 	return name, value, true
+}
+
+// lastChorus returns a pointer to the most recently parsed chorus section, or
+// nil if none has been seen yet. Used by {chorus} recall.
+func lastChorus(secs []Section) *Section {
+	for i := len(secs) - 1; i >= 0; i-- {
+		if secs[i].Kind == KindChorus {
+			return &secs[i]
+		}
+	}
+	return nil
 }
 
 // sectionLabel resolves the display label for a section start directive. It

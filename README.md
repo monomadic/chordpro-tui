@@ -167,12 +167,16 @@ follows it.
   TEMPO pill shows it, so a word `tempo` like `Allegro` doesn't break pacing.
 - `define` chord fingerings override the built-in shapes in the chord sheet
   (`c`); `tuning` is shown there too.
+- `{chorus}` **recalls** (re-inserts) the most recent preceding chorus, so a
+  repeated chorus needn't be copy-pasted. `{chorus: Label}` (or
+  `label="…"`) re-labels the recalled copy; a bare `{chorus}` keeps the
+  original chorus's heading. A `{chorus}` with no preceding chorus is ignored.
 - Blank lines **inside** a `start_of_*`/`end_of_*` block are kept as spacing;
   loose (un-bracketed) paragraphs still split on blank lines.
 
 Unknown directives are ignored; `#` lines are source comments. Conditional
-selectors (`{comment-guitar: …}`), `{chorus}` recall, `{transpose}`, grids, and
-non-European note systems are not yet interpreted.
+selectors (`{comment-guitar: …}`), `{transpose}`, grids, and non-European note
+systems are not yet interpreted.
 
 ## Project layout
 
