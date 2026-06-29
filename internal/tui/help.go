@@ -25,9 +25,10 @@ var helpGroups = []helpGroup{
 		{"w", "save transposed copy"},
 	}},
 	{"View", []helpRow{
-		{"s", "cycle fit / scroll / sync"},
+		{"v", "cycle view: fit / scroll / player"},
+		{"T", "fold tab sections"},
 		{"space", "play / pause"},
-		{"↑ ↓  j k", "scroll a line / seek"},
+		{"↑ ↓ j k  ^n ^p", "scroll a line / seek"},
 		{"f b", "page down / up"},
 		{"g G", "jump top / bottom"},
 		{"+ -", "scroll speed / sync length"},

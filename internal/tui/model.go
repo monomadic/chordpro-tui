@@ -65,6 +65,7 @@ type Model struct {
 	helping    bool // showing the keyboard-shortcut overlay
 	bgFill     bool // fill the screen with the theme's background color
 	hideHeader bool // hide the title/metadata header on song views
+	hideTabs   bool // fold away tab (tablature) sections
 
 	chords bool // showing the chord-shapes sheet overlay
 
@@ -145,12 +146,49 @@ func songDuration(song *chordpro.Song) time.Duration {
 	return 210 * time.Second // 3:30, adjustable in-app with +/-
 }
 
+// renderOpts gathers the display toggles passed to the renderer.
+func (m Model) renderOpts() render.RenderOpts {
+	return render.RenderOpts{
+		HideHeader: m.hideHeader,
+		HideTabs:   m.hideTabs,
+		ViewMode:   modeLabel(m.mode),
+	}
+}
+
+// hasTabs reports whether the song has any tab (tablature) sections to fold.
+func (m Model) hasTabs() bool {
+	for _, sec := range m.base.Sections {
+		if sec.Kind == chordpro.KindTab {
+			return true
+		}
+	}
+	return false
+}
+
+// modeLabel is the human-readable name of a view mode, shown in the bottom-right
+// view badge.
+func modeLabel(md mode) string {
+	switch md {
+	case modeScroll:
+		return "auto-scroll"
+	case modeSync:
+		return "player"
+	default:
+		return "fit-to-screen"
+	}
+}
+
+// viewBadge is the always-on view-mode indicator pinned to the bottom-right.
+func (m Model) viewBadge() string {
+	return render.ViewBadge(m.theme, modeLabel(m.mode))
+}
+
 // rebuild refreshes the transposed song and the long-render cache after a
 // change to transpose, theme, or width.
 func (m *Model) rebuild() {
 	m.song = m.base.Transposed(m.transp)
 	if m.w > 0 {
-		m.long = render.RenderLongWith(m.song, m.w, m.theme, render.RenderOpts{HideHeader: m.hideHeader})
+		m.long = render.RenderLongWith(m.song, m.w, m.theme, m.renderOpts())
 	}
 	m.clampOffset()
 }
@@ -236,13 +274,26 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r": // random song in this folder
 		m.loadRandom()
 
-	case "s": // cycle view mode
+	case "v": // cycle view mode
 		m.mode = (m.mode + 1) % 3
 		switch m.mode {
 		case modeScroll:
 			m.auto = true
 		case modeSync:
 			m.running = false
+		}
+
+	case "T": // fold / unfold tab (tablature) sections
+		if !m.hasTabs() {
+			m.setFlash("No tab sections in this song")
+			break
+		}
+		m.hideTabs = !m.hideTabs
+		m.rebuild()
+		if m.hideTabs {
+			m.setFlash("Tab sections hidden")
+		} else {
+			m.setFlash("Tab sections shown")
 		}
 
 	case "t": // cycle theme
@@ -282,9 +333,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case "down", "j":
+	case "down", "j", "ctrl+n":
 		m.nudge(1)
-	case "up", "k":
+	case "up", "k", "ctrl+p":
 		m.nudge(-1)
 	case "pgdown", "f":
 		m.nudge(m.h)
@@ -578,7 +629,7 @@ func (m Model) View() string {
 	case m.mode == modeSync:
 		out = m.windowView(m.syncOffset(), m.progressBar())
 	default:
-		out = render.RenderWith(m.song, m.w, m.h, m.theme, render.RenderOpts{HideHeader: m.hideHeader})
+		out = render.RenderWith(m.song, m.w, m.h, m.theme, m.renderOpts())
 	}
 	// A transient save/status message takes over the bottom row (not over the
 	// picker/help/chords overlays, which own the whole screen).
@@ -644,7 +695,7 @@ func (m Model) scrollStatus() string {
 		state = "⏸ paused"
 	}
 	left := fmt.Sprintf("%s  %.1f ln/s", state, m.linesPerS)
-	hint := "space pause · +/- speed · s mode · ? help · q"
+	hint := "space pause · +/- speed · v view · ? help · q"
 	return m.statusBar(left, hint)
 }
 
@@ -659,15 +710,16 @@ func (m Model) progressBar() string {
 		icon = "■"
 	}
 	times := fmt.Sprintf("%s %s / %s", icon, mmss(m.elapsed), mmss(m.duration))
+	badge := m.viewBadge()
 
 	hint := "space play · g restart · +/- length · ? help"
-	// Lay out: [times] [bar....] [hint]
-	reserved := lipgloss.Width(times) + lipgloss.Width(hint) + 4
-	barW := m.w - reserved
+	// Lay out: [times] [bar....] [hint] [badge]. The view badge always stays in
+	// the corner; the hint drops first when space is tight.
+	tail := m.theme.Muted.Render(hint) + "  " + badge
+	barW := m.w - lipgloss.Width(times) - lipgloss.Width(tail) - 4
 	if barW < 6 {
-		// Too narrow for the hint; drop it.
-		hint = ""
-		barW = m.w - lipgloss.Width(times) - 2
+		tail = badge
+		barW = m.w - lipgloss.Width(times) - lipgloss.Width(tail) - 3
 	}
 	if barW < 1 {
 		barW = 1
@@ -688,23 +740,25 @@ func (m Model) progressBar() string {
 	}
 
 	line := m.theme.Section.Render(times) + " " + bar
-	if hint != "" {
-		gap := m.w - lipgloss.Width(times) - 1 - barW - lipgloss.Width(hint) - 1
-		if gap < 1 {
-			gap = 1
-		}
-		line += strings.Repeat(" ", gap) + m.theme.Muted.Render(hint)
+	gap := m.w - lipgloss.Width(times) - 1 - barW - lipgloss.Width(tail) - 1
+	if gap < 1 {
+		gap = 1
 	}
+	line += strings.Repeat(" ", gap) + tail
 	return line
 }
 
-// statusBar justifies a left label and a right hint across the screen width.
-func (m Model) statusBar(left, right string) string {
+// statusBar justifies a left label and a right hint across the screen width,
+// with the view-mode badge pinned to the far-right corner.
+func (m Model) statusBar(left, hint string) string {
+	badge := m.viewBadge()
+	right := m.theme.Muted.Render(hint) + "  " + badge
 	gap := m.w - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {
-		return m.theme.Muted.Render(right)
+		// Too narrow for the left label: keep the view badge in the corner.
+		return lipgloss.PlaceHorizontal(m.w, lipgloss.Right, badge)
 	}
-	return m.theme.Section.Render(left) + strings.Repeat(" ", gap) + m.theme.Muted.Render(right)
+	return m.theme.Section.Render(left) + strings.Repeat(" ", gap) + right
 }
 
 func mmss(d time.Duration) string {

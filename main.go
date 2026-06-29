@@ -157,7 +157,8 @@ Keys (interactive):
   e            edit the current file in $EDITOR
   n / p        load next / previous song in the folder
   r            load a random song in the folder
-  s            cycle view: fit → scroll → sync
+  v            cycle view: fit → scroll → player
+  T            fold (hide) tab sections
   c            chord-shape sheet for the current song
   t            cycle color theme
   B            toggle themed background fill
@@ -167,8 +168,8 @@ Keys (interactive):
   w            save a transposed copy alongside the original
   space        pause/resume scroll · play/pause sync
   g            restart sync timeline (jump to top)
-  +/-          scroll speed / sync length (scroll & sync modes)
-  ↑/↓ j/k      scroll a line / seek
+  +/-          scroll speed / sync length (scroll & player modes)
+  ↑/↓ j/k ^n/^p  scroll a line / seek
   g/G          jump to top / bottom
   q            quit
 `

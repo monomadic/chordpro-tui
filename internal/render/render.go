@@ -36,7 +36,18 @@ func newBlock(lines []string) block {
 
 // RenderOpts tweaks how a song is rendered.
 type RenderOpts struct {
-	HideHeader bool // omit the title/metadata header block
+	HideHeader bool   // omit the title/metadata header block
+	HideTabs   bool   // fold away tab (tablature) sections
+	ViewMode   string // view-mode label shown in the footer badge (fit mode only)
+}
+
+// ViewBadge renders the always-on view-mode indicator (e.g. "auto-scroll")
+// shown in the bottom-right corner of every view, styled as a metadata pill.
+func ViewBadge(th *Theme, label string) string {
+	if th == nil {
+		th = DefaultTheme()
+	}
+	return th.PillVal.Render(label)
 }
 
 // Render lays the whole song out to fit within width x height and returns the
@@ -70,7 +81,7 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 		headerH = lipgloss.Height(header)
 	}
 
-	blocks := buildBlocks(song, th)
+	blocks := buildBlocks(song, th, opts)
 
 	// Choose vertical spacing. We prefer a roomy layout (a blank line below the
 	// header, a blank line between sections), but give those rows back to the
@@ -111,7 +122,7 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 		bodyLines = append(bodyLines, make([]string, pad-top)...)
 	}
 	body := lipgloss.PlaceHorizontal(width, lipgloss.Center, strings.Join(bodyLines, "\n"))
-	footer := lipgloss.PlaceHorizontal(width, lipgloss.Center, buildFooter(song, width, th, truncated))
+	footer := lipgloss.PlaceHorizontal(width, lipgloss.Center, buildFooter(song, width, th, truncated, opts.ViewMode))
 
 	var lines []string
 	if !opts.HideHeader {
@@ -125,10 +136,14 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 	return strings.Join(lines, "\n")
 }
 
-// buildBlocks turns each song section into a styled block.
-func buildBlocks(song *chordpro.Song, th *Theme) []block {
+// buildBlocks turns each song section into a styled block. Tab sections are
+// folded away when opts.HideTabs is set.
+func buildBlocks(song *chordpro.Song, th *Theme, opts RenderOpts) []block {
 	var blocks []block
 	for _, sec := range song.Sections {
+		if opts.HideTabs && sec.Kind == chordpro.KindTab {
+			continue
+		}
 		var lines []string
 		if sec.Label != "" {
 			lines = append(lines, th.Section.Render(strings.ToUpper(sec.Label)))
@@ -496,7 +511,7 @@ func RenderLongWith(song *chordpro.Song, width int, th *Theme, opts RenderOpts) 
 	}
 	// Center the body so the song sits in the middle of wide screens with
 	// margins either side; text inside each block stays left-aligned.
-	cols := packColumns(buildBlocks(song, th), width, 1<<30, 1) // huge cap => one column
+	cols := packColumns(buildBlocks(song, th, opts), width, 1<<30, 1) // huge cap => one column
 	body := lipgloss.PlaceHorizontal(width, lipgloss.Center, renderCols(cols, 1))
 
 	var lines []string

@@ -66,9 +66,10 @@ func buildPills(song *chordpro.Song, th *Theme) string {
 }
 
 // buildFooter renders the muted status line at the bottom of the screen: song
-// info plus the active theme and transpose state on the left, key hints on the
-// right. When truncated is set, the hint nudges scroll mode.
-func buildFooter(song *chordpro.Song, width int, th *Theme, truncated bool) string {
+// info plus the active theme and transpose state on the left, key hints and the
+// always-on view-mode badge on the right. When truncated is set, the hint nudges
+// a scrolling view.
+func buildFooter(song *chordpro.Song, width int, th *Theme, truncated bool, mode string) string {
 	left := song.Title
 	if song.Artist != "" {
 		left += " — " + song.Artist
@@ -77,17 +78,28 @@ func buildFooter(song *chordpro.Song, width int, th *Theme, truncated bool) stri
 		left += "   " + status
 	}
 
-	hint := "? help · o open · c chords · s view · t theme · q"
+	hint := "? help · o open · c chords · v view · t theme · q"
 	if truncated {
-		hint = "▾ more — ? help · s scroll · q quit"
+		hint = "▾ more — ? help · v view · q quit"
 	}
 
-	gap := width - lipgloss.Width(left) - lipgloss.Width(hint) - 2
+	// The view-mode badge is pinned to the far-right corner; the hint sits to its
+	// left.
+	right := th.Muted.Render(hint)
+	if mode != "" {
+		right += "  " + ViewBadge(th, mode)
+	}
+
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 2 {
-		// Too narrow for both: just show the hint.
+		// Too narrow for the song info: keep the view badge in the corner, or the
+		// hint when there's no badge.
+		if mode != "" {
+			return lipgloss.PlaceHorizontal(width, lipgloss.Right, ViewBadge(th, mode))
+		}
 		return th.Muted.Render(hint)
 	}
-	return th.Muted.Render(left) + strings.Repeat(" ", gap) + th.Muted.Render(hint)
+	return th.Muted.Render(left) + strings.Repeat(" ", gap) + right
 }
 
 // statusBadge describes the active theme (with its position in the cycle) and

@@ -145,7 +145,7 @@ func TestRenderReclaimsSpacingToFit(t *testing.T) {
 	}
 	th := DefaultTheme()
 	const w = 90
-	blocks := buildBlocks(song, th)
+	blocks := buildBlocks(song, th, RenderOpts{})
 
 	// Height of the most-columns (tightest-width) layout at comfortable section
 	// spacing. The comfortable layout reserves the header, a blank gap below it,

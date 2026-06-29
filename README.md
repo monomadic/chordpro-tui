@@ -58,7 +58,8 @@ chordpro-tui < testdata/wagon_wheel.cho
 | `e`              | edit the current file in `$EDITOR`                |
 | `n` / `p`        | load next / previous song in the folder           |
 | `r`              | load a random song in the folder                  |
-| `s`              | cycle view mode: **fit → scroll → sync**          |
+| `v`              | cycle view mode: **fit → scroll → player**        |
+| `T`              | fold (hide) tab sections                          |
 | `c`              | chord-shape sheet for the current song            |
 | `t`              | cycle color theme                                 |
 | `B`              | toggle themed background fill                      |
@@ -68,7 +69,7 @@ chordpro-tui < testdata/wagon_wheel.cho
 | `w`              | save a transposed copy alongside the original     |
 | `space`          | pause/resume scroll · play/pause sync             |
 | `+` / `-`        | scroll speed (scroll) · song length (sync)        |
-| `↑`/`↓`, `j`/`k` | scroll a line / seek the timeline                 |
+| `↑`/`↓`, `j`/`k`, `^n`/`^p` | scroll a line / seek the timeline       |
 | `f`/`b`, PgDn/PgUp | scroll a page                                   |
 | `g` / `G`        | jump to top / bottom (`g` restarts sync)          |
 | `q`              | quit                                              |
@@ -77,12 +78,22 @@ Press `?` any time for an on-screen overlay of all of these.
 
 ### View modes
 
-- **Fit** — the whole song laid out to fill one screen (see below).
-- **Scroll** — a teleprompter that auto-scrolls at a constant, tempo-derived
-  speed you can nudge with `+`/`-`.
-- **Sync** — scrolls so the last line lands exactly at the end of the song.
-  Reads a `{duration: mm:ss}` directive (defaults to 3:30, adjustable with
+`v` cycles the three views, and the active one is always shown as a badge in the
+bottom-right corner.
+
+- **Fit** (`fit-to-screen`) — the whole song laid out to fill one screen (see
+  below). Because everything is already on screen, the line-scroll keys
+  (`↑`/`↓`, `j`/`k`, `^n`/`^p`) do nothing here by design; they come alive in the
+  two scrolling views.
+- **Scroll** (`auto-scroll`) — a teleprompter that auto-scrolls at a constant,
+  tempo-derived speed you can nudge with `+`/`-`.
+- **Sync** (`player`) — scrolls so the last line lands exactly at the end of the
+  song. Reads a `{duration: mm:ss}` directive (defaults to 3:30, adjustable with
   `+`/`-`); `space` plays/pauses and a progress bar shows elapsed / total.
+
+`T` folds away tab (`{start_of_tab}`) sections in any view, so a chart with long
+tablature blocks collapses to just its chords and lyrics; press `T` again to
+bring them back.
 
 ### Transpose & themes
 
@@ -142,7 +153,7 @@ editor the song is reloaded automatically, preserving your transpose and theme.
 - **Centers when it's small.** A short song is centered vertically and
   horizontally on the page.
 - **Scrolls when it can't.** A song too big for any single-screen layout falls
-  back gracefully; press `s` for the auto-scrolling teleprompter.
+  back gracefully; press `v` for the auto-scrolling teleprompter.
 
 ## Supported ChordPro
 
