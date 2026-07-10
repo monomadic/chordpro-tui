@@ -21,7 +21,8 @@ composition come for free, and the same render code powers both the static
 ## Install / build
 
 ```sh
-go build -o chordpro-tui .
+go build -o chordpro-tui ./cmd/chordpro-tui
+go build -o chordpro-pdf ./cmd/chordpro-pdf   # one-page PDF exporter
 ```
 
 Requires Go 1.21+ and a truecolor terminal for the full palette.
@@ -36,14 +37,14 @@ chordpro-tui testdata/wagon_wheel.cho
 chordpro-tui testdata/
 
 # Start straight into auto-scroll teleprompter mode
-chordpro-tui -scroll testdata/wagon_wheel.cho
+chordpro-tui --scroll testdata/wagon_wheel.cho
 
 # Transpose up 2 semitones, pick a theme
-chordpro-tui -transpose 2 -theme "Tokyo Night" testdata/wagon_wheel.cho
+chordpro-tui --transpose 2 --theme "Tokyo Night" testdata/wagon_wheel.cho
 
 # Render once and exit (good for piping / screenshots)
-chordpro-tui -print testdata/wagon_wheel.cho
-chordpro-tui -print -width 120 -height 40 testdata/wagon_wheel.cho
+chordpro-tui --print testdata/wagon_wheel.cho
+chordpro-tui --print --width 120 --height 40 testdata/wagon_wheel.cho
 
 # Read from stdin
 chordpro-tui < testdata/wagon_wheel.cho
@@ -114,7 +115,7 @@ comments, `{define}`s, tab blocks, annotations and formatting — is preserved
 verbatim. (Custom `{define}` shapes are kept as written; see the transpose
 caveat above.) A confirmation shows briefly on the bottom row.
 
-`B` toggles a **themed background fill** (also `-bg`): instead of the terminal's
+`B` toggles a **themed background fill** (also `--bg`): instead of the terminal's
 default background, the whole screen is painted with the theme's background
 color, with chord and metadata pills still standing out on top. Best with a
 truecolor terminal.
@@ -143,6 +144,38 @@ random pick. Switching songs resets transpose and playback but keeps your theme.
 
 `e` opens the current file in `$EDITOR` (falling back to `vi`); when you quit the
 editor the song is reloaded automatically, preserving your transpose and theme.
+
+## PDF export (`chordpro-pdf`)
+
+`chordpro-pdf` renders the same one-page fit layout to a PDF for offline use on
+a phone, tablet, or desktop — monochrome sheet-music style: a bold sans title
+block, **fingering diagrams for every chord the song uses** (with o/x string
+markers, starting-fret notes, and finger numbers), italic section labels, and
+chords stacked bold over the lyrics. The song always lands on **exactly one
+page**: short songs get large centered type (capped at `--max-font`), long
+songs flow into balanced columns at smaller sizes.
+
+```sh
+chordpro-pdf song.cho                             # → "song (iPad Mini).pdf"
+chordpro-pdf --preset iphone song.cho             # → "song (iPhone).pdf"
+chordpro-pdf --preset mac --inverted song.cho     # 16:10 desktop, night mode
+chordpro-pdf --preset a4 --transpose 2 song.cho   # paper, transposed
+chordpro-pdf --page 800x600 --columns 2 song.cho  # custom size (points), 2 columns
+chordpro-pdf --list-presets
+```
+
+Output defaults to `<input> (<Preset>).pdf` — e.g.
+`Wagon Wheel - Old Crow (iPad Mini).pdf` — so exports for different devices
+sit side by side (override with `-o`/`--output`). Device presets (`ipad-mini`,
+`ipad`, `iphone`, `mac`) use the device's logical point resolution, so the
+page's aspect ratio matches the screen exactly — a full-screen PDF viewer
+shows the song edge-to-edge with no letterboxing. `a4`/`letter` cover paper;
+`--landscape`/`--portrait` turn any preset, and `--page WxH` sets an arbitrary
+size in points. Diagrams honor a song's `{define}` fingerings and follow
+`--transpose`; `--no-diagrams` drops the row. `--inverted` flips the page to
+white-on-black for reading in the dark. Type is Helvetica throughout
+(`--serif` swaps the lyric voice to Times), core PDF fonts only, so files are
+tiny and open anywhere.
 
 ## Layout behaviour
 
@@ -192,9 +225,11 @@ systems are not yet interpreted.
 ## Project layout
 
 ```
-main.go                      CLI entry point, TTY detection, flags
+cmd/chordpro-tui/            terminal renderer: CLI entry, TTY detection, flags
+cmd/chordpro-pdf/            one-page PDF exporter CLI
 internal/chordpro/           parser + song model + transpose
-internal/render/             themes, chord/lyric alignment, column packing
+internal/render/             themes, chord/lyric alignment, column packing (TUI)
+internal/pdf/                PDF page layout + drawing (device presets)
 internal/tui/                Bubbletea model (fit / scroll / sync) + file picker
 scripts/gallery.sh           render the sample song in every theme
 testdata/                    example songs

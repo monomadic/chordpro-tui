@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -239,10 +240,22 @@ func NewTheme(p Palette) *Theme {
 		Tab:        lipgloss.NewStyle().Foreground(p.Tab),
 		Frame:      lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Border).Padding(0, 2),
 		PillKey:    lipgloss.NewStyle().Background(p.PillBg).Foreground(p.Section).Bold(true).Padding(0, 1),
-		PillVal:    lipgloss.NewStyle().Background(p.PillBg).Foreground(p.PillFg).Padding(0, 1),
+		PillVal:    lipgloss.NewStyle().Background(lighten(p.PillBg, 0.12)).Foreground(p.PillFg).Padding(0, 1),
 		ChorusBar:  lipgloss.NewStyle().Foreground(p.Chorus),
 		Muted:      lipgloss.NewStyle().Foreground(p.Muted),
 	}
+}
+
+// lighten blends c a fraction amt toward white (0 = unchanged, 1 = white). It
+// gives metadata pill values a slightly brighter fill than their labels. A
+// non-hex color is returned unchanged.
+func lighten(c lipgloss.Color, amt float64) lipgloss.Color {
+	r, g, b, ok := hexRGB(string(c))
+	if !ok {
+		return c
+	}
+	blend := func(v int) int { return v + int(float64(255-v)*amt) }
+	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", blend(r), blend(g), blend(b)))
 }
 
 // DefaultTheme returns the renderer's default theme.

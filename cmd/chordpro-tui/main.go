@@ -142,14 +142,14 @@ Usage:
   chordpro-tui < song.cho
 
 Flags:
-  -print           render once to stdout and exit
-  -scroll          start in auto-scrolling teleprompter mode
-  -transpose N     transpose chords by N semitones
-  -theme NAME      Mocha, Tokyo Night, Gruvbox, Dracula, Nord,
+  --print          render once to stdout and exit
+  --scroll         start in auto-scrolling teleprompter mode
+  --transpose N    transpose chords by N semitones
+  --theme NAME     Mocha, Tokyo Night, Gruvbox, Dracula, Nord,
                    Synthwave, Cyberpunk, Laser, Vapor
-  -bg              fill the screen with the theme's background color
-  -width  N        override width (print mode)
-  -height N        override height (print mode)
+  --bg             fill the screen with the theme's background color
+  --width  N       override width (print mode)
+  --height N       override height (print mode)
 
 Keys (interactive):
   ?            show all keyboard shortcuts

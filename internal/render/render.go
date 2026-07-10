@@ -152,8 +152,12 @@ func buildBlocks(song *chordpro.Song, th *Theme, opts RenderOpts) []block {
 			lines = append(lines, renderLine(ln, sec.Kind, th)...)
 		}
 		lines = tidyBlanks(lines)
+		// Chorus lines carry a 2-column accent bar; give every other section a
+		// matching 2-space indent so all body text lines up under it.
 		if sec.Kind == chordpro.KindChorus {
 			lines = decorateChorus(lines, th)
+		} else {
+			lines = indentLines(lines, 2)
 		}
 		if len(lines) > 0 {
 			blocks = append(blocks, newBlock(lines))
@@ -261,6 +265,17 @@ func alignChords(segs []chordpro.Segment) (chordRow, lyricRow string) {
 		}
 	}
 	return chord.String(), lyric.String()
+}
+
+// indentLines prefixes n spaces to every line of a block, shifting it right to
+// line up with the chorus body (whose accent bar occupies the same columns).
+func indentLines(lines []string, n int) []string {
+	pad := strings.Repeat(" ", n)
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		out[i] = pad + l
+	}
+	return out
 }
 
 // decorateChorus prefixes a colored accent bar to every line of a chorus block.

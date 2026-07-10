@@ -1,2 +1,4 @@
 .DS_Store
 /chordpro-tui
+/chordpro-pdf
+*.pdf

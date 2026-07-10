@@ -21,7 +21,7 @@ cd "$(dirname "$0")/.."
 
 bg=()
 if [ "${1:-}" = "--bg" ]; then
-  bg=(-bg)
+  bg=(--bg)
   shift
 fi
 song="${1:-testdata/wagon_wheel.cho}"
@@ -33,7 +33,7 @@ fi
 
 bin="$(mktemp -t cptui-gallery)"
 trap 'rm -f "$bin"' EXIT
-go build -o "$bin" .
+go build -o "$bin" ./cmd/chordpro-tui
 
 cols="${GALLERY_W:-$(tput cols 2>/dev/null || echo 100)}"
 rows="${GALLERY_H:-22}"
@@ -42,6 +42,6 @@ themes=(Mocha "Tokyo Night" Gruvbox Dracula Nord Synthwave Cyberpunk Laser Vapor
 
 for t in "${themes[@]}"; do
   printf '\n\033[1;38;2;255;106;213m▌ %s\033[0m\n\n' "$t"
-  CHORDPRO_TUI_FORCE_COLOR=1 "$bin" -print -theme "$t" "${bg[@]}" \
-    -width "$cols" -height "$rows" "$song"
+  CHORDPRO_TUI_FORCE_COLOR=1 "$bin" --print --theme "$t" "${bg[@]}" \
+    --width "$cols" --height "$rows" "$song"
 done
