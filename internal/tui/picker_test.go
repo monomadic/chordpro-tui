@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"chordpro-tui/internal/chordpro"
+	"chordpro-tui/internal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -65,7 +66,7 @@ func TestFuzzyRanksBoundaryHigher(t *testing.T) {
 }
 
 func TestNewPickerScansChordFiles(t *testing.T) {
-	p := newPicker("../../testdata", "../../testdata/wagon_wheel.cho")
+	p := newPicker("../../testdata", "../../testdata/wagon_wheel.cho", config.SortNone)
 	if len(p.entries) < 4 {
 		t.Fatalf("expected >=4 chord files, got %d", len(p.entries))
 	}
@@ -84,7 +85,7 @@ func TestNewPickerScansChordFiles(t *testing.T) {
 }
 
 func TestPickerEntriesCarryMeta(t *testing.T) {
-	p := newPicker("../../testdata", "")
+	p := newPicker("../../testdata", "", config.SortNone)
 	var gotKey, gotTempo bool
 	for _, e := range p.entries {
 		if e.key != "" {
@@ -114,7 +115,7 @@ func TestPickerColumnsDropOnNarrow(t *testing.T) {
 }
 
 func TestPickerFilterAndSelect(t *testing.T) {
-	p := newPicker("../../testdata", "")
+	p := newPicker("../../testdata", "", config.SortNone)
 	p.setQuery("blow")
 	sel, ok := p.selected()
 	if !ok || !strings.Contains(sel, "blowin") {
@@ -135,7 +136,7 @@ func TestPickerFiltersByArtist(t *testing.T) {
 	write("one.cho", "{title: Stolen Car}\n{artist: Beth Orton}\n[C]hi\n")
 	write("two.cho", "{title: Wagon Wheel}\n{artist: Old Crow Medicine Show}\n[C]hi\n")
 
-	p := newPicker(dir, "")
+	p := newPicker(dir, "", config.SortNone)
 
 	// A query that appears only in an artist name still finds the song.
 	p.setQuery("orton")

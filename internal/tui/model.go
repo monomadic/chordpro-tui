@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"chordpro-tui/internal/chordpro"
+	"chordpro-tui/internal/config"
 	"chordpro-tui/internal/render"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -67,6 +68,9 @@ type Model struct {
 	hideHeader bool // hide the title/metadata header on song views
 	hideTabs   bool // fold away tab (tablature) sections
 
+	disp render.RenderOpts // config-derived display defaults (merged each render)
+	sort config.SortMode   // song-queue ordering
+
 	chords bool // showing the chord-shapes sheet overlay
 
 	// flash is a transient status message (e.g. "Saved …") shown on the bottom
@@ -80,8 +84,10 @@ type Options struct {
 	StartScroll bool
 	Transpose   int
 	ThemeName   string
-	Path        string // path of the song being shown, for sibling browsing
-	Background  bool   // start with the themed background fill on
+	Path        string            // path of the song being shown, for sibling browsing
+	Background  bool              // start with the themed background fill on
+	Display     render.RenderOpts // config-derived display defaults
+	Sort        config.SortMode   // song-queue ordering
 }
 
 // New builds the initial model.
@@ -101,6 +107,8 @@ func New(song *chordpro.Song, opts Options) Model {
 		duration:  songDuration(song),
 		path:      opts.Path,
 		bgFill:    opts.Background,
+		disp:      opts.Display,
+		sort:      opts.Sort,
 	}
 	m.song = song.Transposed(m.transp)
 	if opts.StartScroll {
@@ -146,13 +154,14 @@ func songDuration(song *chordpro.Song) time.Duration {
 	return 210 * time.Second // 3:30, adjustable in-app with +/-
 }
 
-// renderOpts gathers the display toggles passed to the renderer.
+// renderOpts gathers the display options passed to the renderer: the
+// config-derived defaults with the live runtime toggles merged on top.
 func (m Model) renderOpts() render.RenderOpts {
-	return render.RenderOpts{
-		HideHeader: m.hideHeader,
-		HideTabs:   m.hideTabs,
-		ViewMode:   modeLabel(m.mode),
-	}
+	o := m.disp
+	o.HideHeader = m.hideHeader
+	o.HideTabs = m.hideTabs
+	o.ViewMode = modeLabel(m.mode)
+	return o
 }
 
 // hasTabs reports whether the song has any tab (tablature) sections to fold.
@@ -253,7 +262,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.helping = true
 
 	case "o": // open another song from this directory
-		m.pick = newPicker(m.dir(), m.path)
+		m.pick = newPicker(m.dir(), m.path, m.sort)
 		m.picking = true
 		return m, nil
 
@@ -477,9 +486,9 @@ func (m *Model) reloadKeepingState() {
 }
 
 // loadSibling loads the next (delta=1) or previous (delta=-1) song in the
-// folder, wrapping around.
+// folder, wrapping around. The folder is ordered by the configured sort mode.
 func (m *Model) loadSibling(delta int) {
-	paths, _ := chordFilePaths(m.dir())
+	paths := orderedChordPaths(m.dir(), m.sort)
 	if len(paths) == 0 {
 		return
 	}
@@ -494,7 +503,7 @@ func (m *Model) loadSibling(delta int) {
 
 // loadRandom loads a random song in the folder, avoiding the current one.
 func (m *Model) loadRandom() {
-	paths, _ := chordFilePaths(m.dir())
+	paths := orderedChordPaths(m.dir(), m.sort)
 	n := len(paths)
 	if n == 0 {
 		return

@@ -10,27 +10,70 @@ import (
 )
 
 // buildHeader composes the title block: title, subtitle/artist line, and a row
-// of metadata "pills" (key, capo, tempo, ...), centered with no border.
-func buildHeader(song *chordpro.Song, width int, th *Theme) string {
+// of metadata "pills" (key, capo, tempo, ...), centered with no border. The
+// title line and pill row can each be hidden via d, and collapsePageTitle lays
+// whatever remains on a single line. Returns "" when nothing is left to show.
+func buildHeader(song *chordpro.Song, width int, th *Theme, d display) string {
+	if d.hideTitle && d.hideInfo {
+		return ""
+	}
+	if d.collapsePageTitle {
+		return buildHeaderInline(song, width, th, d)
+	}
+
 	var rows []string
-
-	title := song.Title
-	if title == "" {
-		title = "Untitled"
+	if !d.hideTitle {
+		title := song.Title
+		if title == "" {
+			title = "Untitled"
+		}
+		rows = append(rows, th.Title.Render(title))
+		if sub := subtitleLine(song); sub != "" {
+			rows = append(rows, th.Subtitle.Render(sub))
+		}
 	}
-	rows = append(rows, th.Title.Render(title))
-
-	if sub := subtitleLine(song); sub != "" {
-		rows = append(rows, th.Subtitle.Render(sub))
+	if !d.hideInfo {
+		if pills := buildPills(song, th); pills != "" {
+			rows = append(rows, pills)
+		}
 	}
-
-	if pills := buildPills(song, th); pills != "" {
-		rows = append(rows, pills)
+	if len(rows) == 0 {
+		return ""
 	}
 
 	header := lipgloss.JoinVertical(lipgloss.Center, rows...)
 
 	// Keep the header within the screen width.
+	if width > 8 && lipgloss.Width(header) > width {
+		header = lipgloss.NewStyle().Width(width).Render(header)
+	}
+	return header
+}
+
+// buildHeaderInline lays the (still-visible) title, artist, and metadata pills
+// out on a single centered line for collapse-page-title.
+func buildHeaderInline(song *chordpro.Song, width int, th *Theme, d display) string {
+	var parts []string
+	if !d.hideTitle {
+		title := song.Title
+		if title == "" {
+			title = "Untitled"
+		}
+		line := th.Title.Render(title)
+		if sub := subtitleLine(song); sub != "" {
+			line += th.Subtitle.Render("  •  " + sub)
+		}
+		parts = append(parts, line)
+	}
+	if !d.hideInfo {
+		if pills := buildPills(song, th); pills != "" {
+			parts = append(parts, pills)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	header := strings.Join(parts, "   ")
 	if width > 8 && lipgloss.Width(header) > width {
 		header = lipgloss.NewStyle().Width(width).Render(header)
 	}

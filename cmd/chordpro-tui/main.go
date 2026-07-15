@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"chordpro-tui/internal/chordpro"
+	"chordpro-tui/internal/config"
 	"chordpro-tui/internal/render"
 	"chordpro-tui/internal/tui"
 
@@ -20,16 +21,41 @@ import (
 
 func main() {
 	var (
-		printMode = flag.Bool("print", false, "render once to stdout and exit (no interactive TUI)")
-		scroll    = flag.Bool("scroll", false, "start in auto-scrolling teleprompter mode")
-		transpose = flag.Int("transpose", 0, "transpose chords by N semitones")
-		themeName = flag.String("theme", "", "color theme: Mocha, Tokyo Night, Gruvbox, Dracula, Nord, Synthwave, Cyberpunk, Laser, Vapor")
-		bg        = flag.Bool("bg", false, "fill the screen with the theme's background color")
-		cols      = flag.Int("width", 0, "override terminal width (print mode)")
-		rows      = flag.Int("height", 0, "override terminal height (print mode)")
+		printMode   = flag.Bool("print", false, "render once to stdout and exit (no interactive TUI)")
+		printConfig = flag.Bool("print-config", false, "print the default chordpro-tui.toml to stdout and exit")
+		initConfig  = flag.Bool("init-config", false, "write the default config to your config dir and exit")
+		configPath  = flag.String("config", "", "path to a chordpro-tui.toml config file")
+		scroll      = flag.Bool("scroll", false, "start in auto-scrolling teleprompter mode")
+		transpose   = flag.Int("transpose", 0, "transpose chords by N semitones")
+		themeName   = flag.String("theme", "", "color theme: Mocha, Tokyo Night, Gruvbox, Dracula, Nord, Synthwave, Cyberpunk, Laser, Vapor")
+		bg          = flag.Bool("bg", false, "fill the screen with the theme's background color")
+		cols        = flag.Int("width", 0, "override terminal width (print mode)")
+		rows        = flag.Int("height", 0, "override terminal height (print mode)")
 	)
 	flag.Usage = usage
 	flag.Parse()
+
+	if *printConfig {
+		fmt.Print(config.Default().Marshal())
+		return
+	}
+
+	if *initConfig {
+		path, err := config.WriteDefault(false)
+		if err != nil {
+			// An existing file isn't fatal: report where it is and leave it be.
+			fmt.Fprintln(os.Stderr, "chordpro-tui:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Wrote default config to", path)
+		return
+	}
+
+	cfg, _, err := config.Load(*configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "chordpro-tui:", err)
+		os.Exit(1)
+	}
 
 	inputPath, err := resolveInput(flag.Arg(0))
 	if err != nil {
@@ -69,7 +95,7 @@ func main() {
 		if h == 0 {
 			h = 40
 		}
-		out := render.Render(song, w, h, theme)
+		out := render.RenderWith(song, w, h, theme, cfg.RenderOpts())
 		if *bg {
 			out = render.ApplyBackground(out, w, theme.P.Bg)
 		}
@@ -84,6 +110,8 @@ func main() {
 			ThemeName:   *themeName,
 			Path:        inputPath,
 			Background:  *bg,
+			Display:     cfg.RenderOpts(),
+			Sort:        cfg.SortSongs,
 		}),
 		tea.WithAltScreen(),
 	)
@@ -143,6 +171,11 @@ Usage:
 
 Flags:
   --print          render once to stdout and exit
+  --print-config   print the default chordpro-tui.toml and exit
+  --init-config    write the default config to ~/.config/chordpro-tui/
+                   chordpro-tui.toml and exit
+  --config PATH    load settings from PATH (else ./chordpro-tui.toml
+                   or ~/.config/chordpro-tui/chordpro-tui.toml)
   --scroll         start in auto-scrolling teleprompter mode
   --transpose N    transpose chords by N semitones
   --theme NAME     Mocha, Tokyo Night, Gruvbox, Dracula, Nord,

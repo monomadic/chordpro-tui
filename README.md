@@ -48,6 +48,12 @@ chordpro-tui --print --width 120 --height 40 testdata/wagon_wheel.cho
 
 # Read from stdin
 chordpro-tui < testdata/wagon_wheel.cho
+
+# Write a documented default config to ~/.config/chordpro-tui/chordpro-tui.toml
+chordpro-tui --init-config
+
+# ...or print it to stdout to redirect yourself
+chordpro-tui --print-config
 ```
 
 ### Keys (interactive)
@@ -139,11 +145,42 @@ are highlighted in whichever column they fall), `↑`/`↓` to move, `enter` to 
 `esc` to cancel.
 
 Without opening the finder you can also jump straight between songs in the
-folder: `n` / `p` for next / previous (alphabetical, wrapping) and `r` for a
-random pick. Switching songs resets transpose and playback but keeps your theme.
+folder: `n` / `p` for next / previous (wrapping) and `r` for a random pick. The
+order (used by both `n`/`p` and the unfiltered finder list) follows the
+`sort-songs` config option below. Switching songs resets transpose and playback
+but keeps your theme.
 
 `e` opens the current file in `$EDITOR` (falling back to `vi`); when you quit the
 editor the song is reloaded automatically, preserving your transpose and theme.
+
+## Configuration
+
+Optional settings live in a small TOML file. Run `chordpro-tui --init-config` to
+drop a documented default at `~/.config/chordpro-tui/chordpro-tui.toml` (respects
+`$XDG_CONFIG_HOME`), or `--print-config` to write it yourself. It's loaded from
+that user-wide path, from a project-local `./chordpro-tui.toml` (which takes
+precedence), or from any `--config PATH`. On macOS both `~/.config/chordpro-tui/`
+and `~/Library/Application Support/chordpro-tui/` are searched.
+
+Most display options are **tri-state** — `true` (always), `false` (never), or
+`auto` (apply only when the song would otherwise overflow the fit-view screen; in
+scroll and player views there is always room, so `auto` behaves as `false`). When
+several `auto` options are set, space is reclaimed from the least disruptive first:
+section spacing, then the page title collapses to one line, then tabs fold, then
+the metadata pills drop, and only last the title itself.
+
+| Key                           | Values              | Effect                                                              |
+| ----------------------------- | ------------------- | ------------------------------------------------------------------- |
+| `collapse-tablature-sections` | true / false / auto | fold away tab (tablature) sections                                  |
+| `autohide-song-title`         | true / false / auto | hide the title + artist line                                        |
+| `autohide-song-info`          | true / false / auto | hide the metadata pills (KEY, CAPO, …)                              |
+| `autohide-section-titles`     | true / false        | hide all section labels (CHORUS, VERSE, …)                          |
+| `collapse-page-title`         | true / false / auto | lay title, artist, and metadata out on one line                     |
+| `collapse-section-title`      | true / false / auto | blank row above each section label (`auto` drops it only if cramped) |
+| `sort-songs`                  | none / name / date  | song-queue order: directory order, by title, or newest-first        |
+
+Config sets the defaults; the `h` (hide header) and `T` (fold tabs) keys still
+toggle at runtime.
 
 ## PDF export (`chordpro-pdf`)
 

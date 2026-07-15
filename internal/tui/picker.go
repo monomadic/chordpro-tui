@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"chordpro-tui/internal/chordpro"
+	"chordpro-tui/internal/config"
 	"chordpro-tui/internal/render"
 
 	"github.com/charmbracelet/lipgloss"
@@ -52,6 +53,7 @@ type pickEntry struct {
 	capo   string // capo fret
 	tempo  string // tempo (bpm)
 	year   string // year
+	mod    int64  // modification time (unix nanos), for date sorting
 }
 
 type pickMatch struct {
@@ -67,13 +69,14 @@ type picker struct {
 	query   string
 	matches []pickMatch
 	cursor  int
-	top     int // index of the first visible row
+	top     int             // index of the first visible row
+	sort    config.SortMode // order of the unfiltered listing
 	err     string
 }
 
 // newPicker scans dir for ChordPro files and pre-selects the current song.
-func newPicker(dir, currentPath string) picker {
-	p := picker{dir: dir}
+func newPicker(dir, currentPath string, mode config.SortMode) picker {
+	p := picker{dir: dir, sort: mode}
 	entries, err := scanChordFiles(dir)
 	if err != nil {
 		p.err = err.Error()
@@ -118,6 +121,53 @@ func chordFilePaths(dir string) ([]string, error) {
 	return paths, nil
 }
 
+// orderedChordPaths returns the ChordPro files in dir ordered by mode: filename
+// order (none), song title (name), or newest-first (date). name/date read each
+// file's metadata; none stays cheap and skips that.
+func orderedChordPaths(dir string, mode config.SortMode) []string {
+	paths, err := chordFilePaths(dir) // filename order
+	if err != nil || mode == config.SortNone {
+		return paths
+	}
+	entries := make([]pickEntry, len(paths))
+	for i, p := range paths {
+		base := filepath.Base(p)
+		entries[i] = readMeta(p, strings.TrimSuffix(base, filepath.Ext(base)))
+	}
+	order := sortedIndices(entries, mode)
+	out := make([]string, len(order))
+	for i, idx := range order {
+		out[i] = entries[idx].path
+	}
+	return out
+}
+
+// sortedIndices returns the indices of entries in the order implied by mode.
+// SortNone keeps the incoming (filename) order.
+func sortedIndices(entries []pickEntry, mode config.SortMode) []int {
+	idx := make([]int, len(entries))
+	for i := range idx {
+		idx[i] = i
+	}
+	switch mode {
+	case SortByTitle:
+		sort.SliceStable(idx, func(a, b int) bool {
+			return strings.ToLower(entries[idx[a]].title) < strings.ToLower(entries[idx[b]].title)
+		})
+	case SortByDate:
+		sort.SliceStable(idx, func(a, b int) bool {
+			return entries[idx[a]].mod > entries[idx[b]].mod // newest first
+		})
+	}
+	return idx
+}
+
+// Aliases keep the sort-mode references readable within this file.
+const (
+	SortByTitle = config.SortName
+	SortByDate  = config.SortDate
+)
+
 // scanChordFiles lists ChordPro files in dir with their displayable metadata.
 func scanChordFiles(dir string) ([]pickEntry, error) {
 	paths, err := chordFilePaths(dir)
@@ -137,6 +187,9 @@ func scanChordFiles(dir string) ([]pickEntry, error) {
 // for the title when the file has none or can't be read.
 func readMeta(path, fallback string) pickEntry {
 	e := pickEntry{path: path, title: fallback}
+	if fi, err := os.Stat(path); err == nil {
+		e.mod = fi.ModTime().UnixNano()
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return e
@@ -173,9 +226,17 @@ func (p *picker) backspace() {
 	p.setQuery(string(r[:len(r)-1]))
 }
 
-// refilter recomputes and re-sorts matches for the current query.
+// refilter recomputes and re-sorts matches for the current query. With no
+// query the full list is shown in the configured sort order; otherwise entries
+// are ranked by fuzzy relevance.
 func (p *picker) refilter() {
 	p.matches = p.matches[:0]
+	if p.query == "" {
+		for _, i := range sortedIndices(p.entries, p.sort) {
+			p.matches = append(p.matches, pickMatch{idx: i})
+		}
+		return
+	}
 	type scored struct {
 		m     pickMatch
 		score int

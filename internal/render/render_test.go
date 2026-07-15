@@ -145,13 +145,13 @@ func TestRenderReclaimsSpacingToFit(t *testing.T) {
 	}
 	th := DefaultTheme()
 	const w = 90
-	blocks := buildBlocks(song, th, RenderOpts{})
+	blocks := buildBlocks(song, th, display{})
 
 	// Height of the most-columns (tightest-width) layout at comfortable section
 	// spacing. The comfortable layout reserves the header, a blank gap below it,
 	// and the footer — so it needs this many rows:
 	roomyColH := maxColHeight(packColumns(blocks, w, 1, 1), 1)
-	headerH := lipgloss.Height(buildHeader(song, w, th))
+	headerH := lipgloss.Height(buildHeader(song, w, th, display{}))
 	roomyNeed := roomyColH + headerH + 2 // header gap + footer
 
 	// One row short of that: the old layout clipped here; the new one reclaims a

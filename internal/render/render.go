@@ -34,11 +34,20 @@ func newBlock(lines []string) block {
 	return block{lines: lines, width: w, height: len(lines)}
 }
 
-// RenderOpts tweaks how a song is rendered.
+// RenderOpts tweaks how a song is rendered. HideHeader and HideTabs are the
+// live runtime toggles (the 'h' and 'T' keys); the Tri-valued fields are the
+// configurable display options. The zero value renders everything plainly.
 type RenderOpts struct {
-	HideHeader bool   // omit the title/metadata header block
-	HideTabs   bool   // fold away tab (tablature) sections
+	HideHeader bool   // omit the whole title/metadata header block ('h' key)
+	HideTabs   bool   // fold away tab (tablature) sections ('T' key)
 	ViewMode   string // view-mode label shown in the footer badge (fit mode only)
+
+	CollapseTabs      Tri  // fold tab sections (config)
+	HideTitle         Tri  // hide the title + artist line
+	HideInfo          Tri  // hide the metadata pills (KEY, CAPO, …)
+	HideSectionTitles bool // drop section labels (CHORUS, VERSE, …)
+	CollapsePageTitle Tri  // lay title, artist, and metadata on one line
+	SectionTitleGap   Tri  // blank row above each section label
 }
 
 // ViewBadge renders the always-on view-mode indicator (e.g. "auto-scroll")
@@ -62,11 +71,33 @@ func Render(song *chordpro.Song, width, height int, th *Theme) string {
 // stacked section blocks within a column.
 type spacingPlan struct{ gapBelow, sectionGap int }
 
-// RenderWith is Render with display options.
+// RenderWith is Render with display options. When any option is set to Auto it
+// renders the song at progressively leaner settings — giving back section
+// spacing, then collapsing and hiding header elements — and returns the first
+// layout that fits the screen without clipping (or the leanest one if none do).
 func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOpts) string {
 	if th == nil {
 		th = DefaultTheme()
 	}
+	base, steps := resolveDisplay(opts)
+	var out string
+	for level := 0; level <= len(steps); level++ {
+		d := base
+		for i := 0; i < level; i++ {
+			steps[i](&d)
+		}
+		s, truncated := renderFit(song, width, height, th, d, opts.ViewMode)
+		out = s
+		if !truncated {
+			break
+		}
+	}
+	return out
+}
+
+// renderFit lays the song out at the fixed display settings d and reports
+// whether the body had to be clipped to fit the screen.
+func renderFit(song *chordpro.Song, width, height int, th *Theme, d display, viewMode string) (string, bool) {
 	if width < 20 {
 		width = 20
 	}
@@ -75,13 +106,16 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 	}
 
 	header := ""
+	if !d.hideHeader {
+		header = buildHeader(song, width, th, d)
+	}
 	headerH := 0
-	if !opts.HideHeader {
-		header = buildHeader(song, width, th)
+	hasHeader := header != ""
+	if hasHeader {
 		headerH = lipgloss.Height(header)
 	}
 
-	blocks := buildBlocks(song, th, opts)
+	blocks := buildBlocks(song, th, d)
 
 	// Choose vertical spacing. We prefer a roomy layout (a blank line below the
 	// header, a blank line between sections), but give those rows back to the
@@ -90,7 +124,7 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 	// take the first that fits, else the tightest (whose body is then clipped,
 	// with the footer flagging "more").
 	plans := []spacingPlan{{0, 1}, {0, 0}}
-	if !opts.HideHeader {
+	if hasHeader {
 		plans = []spacingPlan{{1, 1}, {0, 1}, {0, 0}}
 	}
 
@@ -122,10 +156,10 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 		bodyLines = append(bodyLines, make([]string, pad-top)...)
 	}
 	body := lipgloss.PlaceHorizontal(width, lipgloss.Center, strings.Join(bodyLines, "\n"))
-	footer := lipgloss.PlaceHorizontal(width, lipgloss.Center, buildFooter(song, width, th, truncated, opts.ViewMode))
+	footer := lipgloss.PlaceHorizontal(width, lipgloss.Center, buildFooter(song, width, th, truncated, viewMode))
 
 	var lines []string
-	if !opts.HideHeader {
+	if hasHeader {
 		lines = append(lines, strings.Split(lipgloss.PlaceHorizontal(width, lipgloss.Center, header), "\n")...)
 		for i := 0; i < sel.gapBelow; i++ {
 			lines = append(lines, "")
@@ -133,19 +167,20 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 	}
 	lines = append(lines, strings.Split(body, "\n")...)
 	lines = append(lines, footer)
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), truncated
 }
 
-// buildBlocks turns each song section into a styled block. Tab sections are
-// folded away when opts.HideTabs is set.
-func buildBlocks(song *chordpro.Song, th *Theme, opts RenderOpts) []block {
+// buildBlocks turns each song section into a styled block, honouring the tab
+// fold, section-label, and section-gap choices in d.
+func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 	var blocks []block
 	for _, sec := range song.Sections {
-		if opts.HideTabs && sec.Kind == chordpro.KindTab {
+		if d.hideTabs && sec.Kind == chordpro.KindTab {
 			continue
 		}
+		hasLabel := sec.Label != "" && !d.hideSectionTitles
 		var lines []string
-		if sec.Label != "" {
+		if hasLabel {
 			lines = append(lines, th.Section.Render(strings.ToUpper(sec.Label)))
 		}
 		for _, ln := range sec.Lines {
@@ -158,6 +193,10 @@ func buildBlocks(song *chordpro.Song, th *Theme, opts RenderOpts) []block {
 			lines = decorateChorus(lines, th)
 		} else {
 			lines = indentLines(lines, 2)
+		}
+		// A blank row above a labeled section sets it off from the block above.
+		if d.sectionTitleGap && hasLabel && len(lines) > 0 {
+			lines = append([]string{""}, lines...)
 		}
 		if len(lines) > 0 {
 			blocks = append(blocks, newBlock(lines))
@@ -524,16 +563,21 @@ func RenderLongWith(song *chordpro.Song, width int, th *Theme, opts RenderOpts) 
 	if width < 20 {
 		width = 20
 	}
+	// A tall scroll has unlimited vertical room, so Auto options stay in their
+	// roomiest state (the base display, with no reduction steps applied).
+	d, _ := resolveDisplay(opts)
 	// Center the body so the song sits in the middle of wide screens with
 	// margins either side; text inside each block stays left-aligned.
-	cols := packColumns(buildBlocks(song, th, opts), width, 1<<30, 1) // huge cap => one column
+	cols := packColumns(buildBlocks(song, th, d), width, 1<<30, 1) // huge cap => one column
 	body := lipgloss.PlaceHorizontal(width, lipgloss.Center, renderCols(cols, 1))
 
 	var lines []string
-	if !opts.HideHeader {
-		header := lipgloss.PlaceHorizontal(width, lipgloss.Center, buildHeader(song, width, th))
-		lines = append(lines, strings.Split(header, "\n")...)
-		lines = append(lines, "") // blank line between header and body
+	if !d.hideHeader {
+		if header := buildHeader(song, width, th, d); header != "" {
+			header = lipgloss.PlaceHorizontal(width, lipgloss.Center, header)
+			lines = append(lines, strings.Split(header, "\n")...)
+			lines = append(lines, "") // blank line between header and body
+		}
 	}
 	lines = append(lines, strings.Split(body, "\n")...)
 	return lines
