@@ -63,10 +63,10 @@ type Model struct {
 	picking bool
 	pick    picker
 
-	helping    bool // showing the keyboard-shortcut overlay
-	bgFill     bool // fill the screen with the theme's background color
-	hideHeader bool // hide the title/metadata header on song views
-	hideTabs   bool // fold away tab (tablature) sections
+	helping    bool  // showing the keyboard-shortcut overlay
+	bgFill     bool  // fill the screen with the theme's background color
+	hideHeader bool  // hide the title/metadata header on song views
+	tabFold    *bool // 'T' override of the configured tab fold; nil = follow config
 
 	disp render.RenderOpts // config-derived display defaults (merged each render)
 	sort config.SortMode   // song-queue ordering
@@ -159,9 +159,19 @@ func songDuration(song *chordpro.Song) time.Duration {
 func (m Model) renderOpts() render.RenderOpts {
 	o := m.disp
 	o.HideHeader = m.hideHeader
-	o.HideTabs = m.hideTabs
+	o.TabFold = m.tabFold
 	o.ViewMode = modeLabel(m.mode)
 	return o
+}
+
+// tabsFolded reports whether tab sections are currently folded away: the 'T'
+// override if one is set, else the configured default (Auto counts as showing,
+// so the first press folds).
+func (m Model) tabsFolded() bool {
+	if m.tabFold != nil {
+		return *m.tabFold
+	}
+	return m.disp.CollapseTabs == render.On
 }
 
 // hasTabs reports whether the song has any tab (tablature) sections to fold.
@@ -297,9 +307,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.setFlash("No tab sections in this song")
 			break
 		}
-		m.hideTabs = !m.hideTabs
+		fold := !m.tabsFolded()
+		m.tabFold = &fold
 		m.rebuild()
-		if m.hideTabs {
+		if fold {
 			m.setFlash("Tab sections hidden")
 		} else {
 			m.setFlash("Tab sections shown")

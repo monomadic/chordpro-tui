@@ -39,8 +39,10 @@ func resolveDisplay(opts RenderOpts) (display, []func(*display)) {
 	if opts.CollapseTabs == On {
 		d.hideTabs = true
 	}
-	if opts.HideTabs {
-		d.hideTabs = true // the 'T' key forces a fold regardless of config
+	if opts.TabFold != nil {
+		// The 'T' key wins outright, in both directions: it can unfold tabs that
+		// the config folds away, not just fold them.
+		d.hideTabs = *opts.TabFold
 	}
 	if opts.HideInfo == On {
 		d.hideInfo = true
@@ -66,7 +68,7 @@ func resolveDisplay(opts RenderOpts) (display, []func(*display)) {
 	if opts.CollapsePageTitle == Auto {
 		steps = append(steps, func(x *display) { x.collapsePageTitle = true })
 	}
-	if opts.CollapseTabs == Auto {
+	if opts.CollapseTabs == Auto && opts.TabFold == nil {
 		steps = append(steps, func(x *display) { x.hideTabs = true })
 	}
 	if opts.HideInfo == Auto {

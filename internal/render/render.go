@@ -34,12 +34,12 @@ func newBlock(lines []string) block {
 	return block{lines: lines, width: w, height: len(lines)}
 }
 
-// RenderOpts tweaks how a song is rendered. HideHeader and HideTabs are the
+// RenderOpts tweaks how a song is rendered. HideHeader and TabFold are the
 // live runtime toggles (the 'h' and 'T' keys); the Tri-valued fields are the
 // configurable display options. The zero value renders everything plainly.
 type RenderOpts struct {
 	HideHeader bool   // omit the whole title/metadata header block ('h' key)
-	HideTabs   bool   // fold away tab (tablature) sections ('T' key)
+	TabFold    *bool  // 'T' key override of CollapseTabs; nil = follow the config
 	ViewMode   string // view-mode label shown in the footer badge (fit mode only)
 
 	CollapseTabs      Tri  // fold tab sections (config)
@@ -180,19 +180,24 @@ func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 		}
 		hasLabel := sec.Label != "" && !d.hideSectionTitles
 		var lines []string
-		if hasLabel {
-			lines = append(lines, th.Section.Render(strings.ToUpper(sec.Label)))
-		}
-		for _, ln := range sec.Lines {
-			lines = append(lines, renderLine(ln, sec.Kind, th)...)
-		}
-		lines = tidyBlanks(lines)
-		// Chorus lines carry a 2-column accent bar; give every other section a
-		// matching 2-space indent so all body text lines up under it.
-		if sec.Kind == chordpro.KindChorus {
-			lines = decorateChorus(lines, th)
+		if sec.Kind == chordpro.KindTab {
+			// Tabs sit in their own dark panel instead of the usual styled rows.
+			lines = indentLines(tabPanel(sec, th, hasLabel), 2)
 		} else {
-			lines = indentLines(lines, 2)
+			if hasLabel {
+				lines = append(lines, th.Section.Render(strings.ToUpper(sec.Label)))
+			}
+			for _, ln := range sec.Lines {
+				lines = append(lines, renderLine(ln, th)...)
+			}
+			lines = tidyBlanks(lines)
+			// Chorus lines carry a 2-column accent bar; give every other section a
+			// matching 2-space indent so all body text lines up under it.
+			if sec.Kind == chordpro.KindChorus {
+				lines = decorateChorus(lines, th)
+			} else {
+				lines = indentLines(lines, 2)
+			}
 		}
 		// A blank row above a labeled section sets it off from the block above.
 		if d.sectionTitleGap && hasLabel && len(lines) > 0 {
@@ -203,6 +208,51 @@ func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 		}
 	}
 	return blocks
+}
+
+// tabPanel lays a tablature section out as a framed, dark-filled block of
+// verbatim rows, so it reads as a small terminal window inset in the page
+// rather than loose monospace text. The section label, when shown, becomes the
+// panel's title bar. The frame carries the separation on themes whose page
+// background is already near-black.
+func tabPanel(sec chordpro.Section, th *Theme, hasLabel bool) []string {
+	var rows []string
+	if hasLabel {
+		rows = append(rows, strings.ToUpper(sec.Label))
+	}
+	for _, ln := range sec.Lines {
+		if ln.Comment != "" {
+			rows = append(rows, ln.Comment)
+			continue
+		}
+		rows = append(rows, ln.PlainText())
+	}
+	rows = tidyBlanks(rows)
+	if len(rows) == 0 {
+		return nil
+	}
+
+	// Pad every row to the same width so the fill is a solid rectangle, then
+	// wrap the lot in the panel frame.
+	w := 0
+	for _, r := range rows {
+		if x := lipgloss.Width(r); x > w {
+			w = x
+		}
+	}
+	bar := strings.Repeat("─", w+2)
+	out := make([]string, 0, len(rows)+2)
+	out = append(out, th.TabFrame.Render("╭"+bar+"╮"))
+	for i, r := range rows {
+		st := th.Tab
+		if i == 0 && hasLabel {
+			st = th.TabLabel
+		}
+		cell := st.Render(" " + r + strings.Repeat(" ", w-lipgloss.Width(r)) + " ")
+		out = append(out, th.TabFrame.Render("│")+cell+th.TabFrame.Render("│"))
+	}
+	out = append(out, th.TabFrame.Render("╰"+bar+"╯"))
+	return out
 }
 
 // tidyBlanks collapses any run of blank lines down to a single blank and trims
@@ -230,12 +280,9 @@ func tidyBlanks(lines []string) []string {
 
 // renderLine produces the styled rows for a single source line: a chord row
 // stacked above the lyric row, a comment, or a verbatim tab row.
-func renderLine(ln chordpro.Line, kind chordpro.SectionKind, th *Theme) []string {
+func renderLine(ln chordpro.Line, th *Theme) []string {
 	if ln.Comment != "" {
 		return []string{th.Comment.Render(ln.Comment)}
-	}
-	if kind == chordpro.KindTab {
-		return []string{th.Tab.Render(ln.PlainText())}
 	}
 	if ln.IsBlank() {
 		return []string{""}

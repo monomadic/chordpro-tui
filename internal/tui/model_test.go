@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"chordpro-tui/internal/chordpro"
+	"chordpro-tui/internal/render"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -262,8 +263,8 @@ func TestFoldTabsTogglesTabSection(t *testing.T) {
 	}
 	nm, _ := m.handleKey(key("T"))
 	m = nm.(Model)
-	if !m.hideTabs {
-		t.Fatal("T did not set hideTabs")
+	if !m.tabsFolded() {
+		t.Fatal("T did not fold tabs")
 	}
 	if strings.Contains(stripANSI(m.View()), "TABMARKER") {
 		t.Error("tab content still shown after folding")
@@ -279,12 +280,31 @@ func TestFoldTabsTogglesTabSection(t *testing.T) {
 	}
 }
 
+// With collapse-tablature-sections = true in the config, 'T' has to work as an
+// unfold: the config sets the starting state, the key overrides it either way.
+func TestFoldTabsOverridesConfigFold(t *testing.T) {
+	s, err := chordpro.ParseString(tabSong)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := Options{Display: render.RenderOpts{CollapseTabs: render.On}}
+	m := resize(New(s, opts), 100, 40)
+	if strings.Contains(stripANSI(m.View()), "TABMARKER") {
+		t.Fatal("config fold not applied")
+	}
+	nm, _ := m.handleKey(key("T"))
+	m = nm.(Model)
+	if !strings.Contains(stripANSI(m.View()), "TABMARKER") {
+		t.Error("T did not unfold tabs folded by the config")
+	}
+}
+
 func TestFoldTabsNoTabsIsNoop(t *testing.T) {
 	m := resize(mustModel(t), 80, 24) // the shared song has no tab section
 	nm, _ := m.handleKey(key("T"))
 	m = nm.(Model)
-	if m.hideTabs {
-		t.Error("hideTabs set on a song with no tab sections")
+	if m.tabFold != nil {
+		t.Error("tab fold overridden on a song with no tab sections")
 	}
 }
 

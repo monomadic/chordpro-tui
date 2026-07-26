@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"chordpro-tui/internal/chordpro"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func mustParse(t *testing.T, src string) *chordpro.Song {
@@ -125,5 +127,55 @@ func TestAutoReducesToAvoidTruncation(t *testing.T) {
 	auto := RenderWith(song, w, h, th, RenderOpts{CollapsePageTitle: Auto, SectionTitleGap: Auto})
 	if strings.Contains(auto, "▾") {
 		t.Errorf("auto options should have reclaimed space to avoid truncation at h=%d:\n%s", h, auto)
+	}
+}
+
+const tabSectionSong = `{title: Tabs}
+{artist: A}
+
+{sov: Verse}
+[C]Hello there
+{eov}
+
+{sot: Riff}
+e|--0--2--3--|
+B|--1--------|
+{eot}
+`
+
+func TestTabFoldOverridesCollapseTabs(t *testing.T) {
+	song := mustParse(t, tabSectionSong)
+	th := DefaultTheme()
+
+	folded := RenderWith(song, 100, 30, th, RenderOpts{CollapseTabs: On})
+	if strings.Contains(folded, "e|--0--2--3--|") {
+		t.Errorf("CollapseTabs: On should fold the tab section:\n%s", folded)
+	}
+	// The 'T' key must be able to unfold what the config folded, not just fold.
+	show, hide := false, true
+	shown := RenderWith(song, 100, 30, th, RenderOpts{CollapseTabs: On, TabFold: &show})
+	if !strings.Contains(shown, "e|--0--2--3--|") {
+		t.Errorf("TabFold=false should unfold a config-folded tab section:\n%s", shown)
+	}
+	hidden := RenderWith(song, 100, 30, th, RenderOpts{TabFold: &hide})
+	if strings.Contains(hidden, "e|--0--2--3--|") {
+		t.Errorf("TabFold=true should fold the tab section:\n%s", hidden)
+	}
+}
+
+func TestTabPanelIsAPaddedRectangle(t *testing.T) {
+	song := mustParse(t, tabSectionSong)
+	lines := tabPanel(song.Sections[1], DefaultTheme(), true)
+	if len(lines) != 5 { // blank fill, RIFF title bar, two tab rows, blank fill
+		t.Fatalf("want 5 panel rows, got %d: %q", len(lines), lines)
+	}
+	w := lipgloss.Width(lines[0])
+	for i, l := range lines {
+		if got := lipgloss.Width(l); got != w {
+			t.Errorf("row %d width %d, want %d (panel must be a rectangle)", i, got, w)
+		}
+	}
+	if !strings.Contains(stripANSI(lines[1]), "RIFF") {
+		t.Errorf("section label should head the panel, got %q", lines[1])
 	}
 }

@@ -66,7 +66,7 @@ chordpro-tui --print-config
 | `n` / `p`        | load next / previous song in the folder           |
 | `r`              | load a random song in the folder                  |
 | `v`              | cycle view mode: **fit → scroll → player**        |
-| `T`              | fold (hide) tab sections                          |
+| `T`              | fold / unfold tab sections                        |
 | `c`              | chord-shape sheet for the current song            |
 | `t`              | cycle color theme                                 |
 | `B`              | toggle themed background fill                      |
@@ -98,9 +98,12 @@ bottom-right corner.
   song. Reads a `{duration: mm:ss}` directive (defaults to 3:30, adjustable with
   `+`/`-`); `space` plays/pauses and a progress bar shows elapsed / total.
 
-`T` folds away tab (`{start_of_tab}`) sections in any view, so a chart with long
-tablature blocks collapses to just its chords and lyrics; press `T` again to
-bring them back.
+Tab (`{start_of_tab}`) sections are drawn as a dark inset panel — a filled
+near-black block with the section label as its title bar — so tablature reads
+apart from the lyrics. `T` folds those sections away in any view, so a chart
+with long tablature blocks collapses to just its chords and lyrics; press `T`
+again to bring them back. It overrides `collapse-tablature-sections` in both
+directions, so `T` unfolds tabs that the config folds by default.
 
 ### Transpose & themes
 
@@ -180,7 +183,7 @@ the metadata pills drop, and only last the title itself.
 | `sort-songs`                  | none / name / date  | song-queue order: directory order, by title, or newest-first        |
 
 Config sets the defaults; the `h` (hide header) and `T` (fold tabs) keys still
-toggle at runtime.
+toggle at runtime, and `T` overrides a configured fold in either direction.
 
 ## PDF export (`chordpro-pdf`)
 

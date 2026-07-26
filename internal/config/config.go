@@ -44,7 +44,7 @@ type Config struct {
 func Default() Config { return Config{} }
 
 // RenderOpts translates the display-related settings into renderer options.
-// The caller merges the live runtime toggles (HideHeader/HideTabs/ViewMode) on
+// The caller merges the live runtime toggles (HideHeader/TabFold/ViewMode) on
 // top of the returned value.
 func (c Config) RenderOpts() render.RenderOpts {
 	return render.RenderOpts{

@@ -218,6 +218,8 @@ type Theme struct {
 	Section    lipgloss.Style
 	Comment    lipgloss.Style
 	Tab        lipgloss.Style
+	TabLabel   lipgloss.Style
+	TabFrame   lipgloss.Style
 	Frame      lipgloss.Style
 	PillKey    lipgloss.Style
 	PillVal    lipgloss.Style
@@ -237,13 +239,33 @@ func NewTheme(p Palette) *Theme {
 		Subtitle:   lipgloss.NewStyle().Foreground(p.Subtitle).Italic(true),
 		Section:    lipgloss.NewStyle().Foreground(p.Section).Bold(true).Italic(true),
 		Comment:    lipgloss.NewStyle().Foreground(p.Comment).Italic(true),
-		Tab:        lipgloss.NewStyle().Foreground(p.Tab),
+		Tab:        lipgloss.NewStyle().Foreground(p.Tab).Background(tabBg(p)),
+		TabLabel:   lipgloss.NewStyle().Foreground(p.Section).Background(tabBg(p)).Bold(true).Italic(true),
+		TabFrame:   lipgloss.NewStyle().Foreground(p.Border).Background(tabBg(p)),
 		Frame:      lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Border).Padding(0, 2),
 		PillKey:    lipgloss.NewStyle().Background(p.PillBg).Foreground(p.Section).Bold(true).Padding(0, 1),
 		PillVal:    lipgloss.NewStyle().Background(lighten(p.PillBg, 0.12)).Foreground(p.PillFg).Padding(0, 1),
 		ChorusBar:  lipgloss.NewStyle().Foreground(p.Chorus),
 		Muted:      lipgloss.NewStyle().Foreground(p.Muted),
 	}
+}
+
+// tabBg is the near-black fill behind a tablature block, so tab sections read
+// as an inset terminal window. It's derived from the theme's own background so
+// every palette gets a matching shade without carrying an extra color.
+func tabBg(p Palette) lipgloss.Color {
+	return darken(p.Bg, 0.5)
+}
+
+// darken blends c a fraction amt toward black (0 = unchanged, 1 = black). A
+// non-hex color is returned unchanged.
+func darken(c lipgloss.Color, amt float64) lipgloss.Color {
+	r, g, b, ok := hexRGB(string(c))
+	if !ok {
+		return c
+	}
+	blend := func(v int) int { return int(float64(v) * (1 - amt)) }
+	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", blend(r), blend(g), blend(b)))
 }
 
 // lighten blends c a fraction amt toward white (0 = unchanged, 1 = white). It
