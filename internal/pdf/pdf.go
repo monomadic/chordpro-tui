@@ -10,7 +10,7 @@ import (
 	"io"
 	"strconv"
 
-	"chordpro-tui/internal/chordpro"
+	"github.com/monomadic/chordpro-tui/internal/chordpro"
 
 	"github.com/go-pdf/fpdf"
 )

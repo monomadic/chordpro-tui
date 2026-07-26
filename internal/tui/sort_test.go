@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"chordpro-tui/internal/config"
+	"github.com/monomadic/chordpro-tui/internal/config"
 )
 
 func TestOrderedChordPaths(t *testing.T) {

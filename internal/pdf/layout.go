@@ -3,8 +3,8 @@ package pdf
 import (
 	"strings"
 
-	"chordpro-tui/internal/chordpro"
-	"chordpro-tui/internal/chords"
+	"github.com/monomadic/chordpro-tui/internal/chordpro"
+	"github.com/monomadic/chordpro-tui/internal/chords"
 
 	"github.com/go-pdf/fpdf"
 )

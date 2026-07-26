@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"chordpro-tui/internal/chordpro"
-	"chordpro-tui/internal/config"
-	"chordpro-tui/internal/render"
+	"github.com/monomadic/chordpro-tui/internal/chordpro"
+	"github.com/monomadic/chordpro-tui/internal/config"
+	"github.com/monomadic/chordpro-tui/internal/render"
 
 	"github.com/charmbracelet/lipgloss"
 )

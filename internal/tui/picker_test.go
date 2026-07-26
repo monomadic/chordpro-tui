@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"chordpro-tui/internal/chordpro"
-	"chordpro-tui/internal/config"
+	"github.com/monomadic/chordpro-tui/internal/chordpro"
+	"github.com/monomadic/chordpro-tui/internal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

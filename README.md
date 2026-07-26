@@ -18,14 +18,23 @@ genuinely good-looking TUI: truecolor styles, rounded borders, and column
 composition come for free, and the same render code powers both the static
 "fit to page" view and the animated scroll view.
 
-## Install / build
+## Install
 
 ```sh
-go build -o chordpro-tui ./cmd/chordpro-tui
-go build -o chordpro-pdf ./cmd/chordpro-pdf   # one-page PDF exporter
+go install github.com/monomadic/chordpro-tui@latest
+go install github.com/monomadic/chordpro-tui/cmd/chordpro-pdf@latest   # one-page PDF exporter
 ```
 
-Requires Go 1.21+ and a truecolor terminal for the full palette.
+Both land in `$(go env GOPATH)/bin` — add that to your `PATH` if it isn't already.
+
+Or build from a clone:
+
+```sh
+go build -o chordpro-tui .
+go build -o chordpro-pdf ./cmd/chordpro-pdf
+```
+
+Requires Go 1.26+ and a truecolor terminal for the full palette.
 
 ## Usage
 
@@ -265,7 +274,7 @@ systems are not yet interpreted.
 ## Project layout
 
 ```
-cmd/chordpro-tui/            terminal renderer: CLI entry, TTY detection, flags
+main.go                      terminal renderer: CLI entry, TTY detection, flags
 cmd/chordpro-pdf/            one-page PDF exporter CLI
 internal/chordpro/           parser + song model + transpose
 internal/render/             themes, chord/lyric alignment, column packing (TUI)

@@ -33,7 +33,7 @@ fi
 
 bin="$(mktemp -t cptui-gallery)"
 trap 'rm -f "$bin"' EXIT
-go build -o "$bin" ./cmd/chordpro-tui
+go build -o "$bin" .
 
 cols="${GALLERY_W:-$(tput cols 2>/dev/null || echo 100)}"
 rows="${GALLERY_H:-22}"

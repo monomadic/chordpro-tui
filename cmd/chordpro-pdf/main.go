@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"chordpro-tui/internal/chordpro"
-	"chordpro-tui/internal/pdf"
+	"github.com/monomadic/chordpro-tui/internal/chordpro"
+	"github.com/monomadic/chordpro-tui/internal/pdf"
 
 	"golang.org/x/term"
 )

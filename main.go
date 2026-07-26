@@ -8,10 +8,10 @@ import (
 	"io"
 	"os"
 
-	"chordpro-tui/internal/chordpro"
-	"chordpro-tui/internal/config"
-	"chordpro-tui/internal/render"
-	"chordpro-tui/internal/tui"
+	"github.com/monomadic/chordpro-tui/internal/chordpro"
+	"github.com/monomadic/chordpro-tui/internal/config"
+	"github.com/monomadic/chordpro-tui/internal/render"
+	"github.com/monomadic/chordpro-tui/internal/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

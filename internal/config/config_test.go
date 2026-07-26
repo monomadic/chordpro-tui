@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"chordpro-tui/internal/render"
+	"github.com/monomadic/chordpro-tui/internal/render"
 )
 
 func TestDefaultIsZeroBehaviour(t *testing.T) {

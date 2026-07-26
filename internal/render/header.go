@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"chordpro-tui/internal/chordpro"
+	"github.com/monomadic/chordpro-tui/internal/chordpro"
 
 	"github.com/charmbracelet/lipgloss"
 )

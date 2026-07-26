@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"chordpro-tui/internal/render"
+	"github.com/monomadic/chordpro-tui/internal/render"
 )
 
 // FileName is the base name looked for in the working and config directories.

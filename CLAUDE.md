@@ -9,15 +9,15 @@ A terminal ChordPro song renderer (Go + Bubbletea/Lipgloss). It lays a whole son
 ## Commands
 
 ```sh
-go build -o chordpro-tui ./cmd/chordpro-tui   # build the TUI
+go build -o chordpro-tui .   # build the TUI
 go build -o chordpro-pdf ./cmd/chordpro-pdf   # build the PDF exporter
 go test ./...                       # all tests
 go test ./internal/chordpro/ -run TestParse -v   # single test
 go vet ./...                        # lint (no other linter configured)
 
 # Run without a TTY / verify rendering (deterministic, good for eyeballing changes):
-go run ./cmd/chordpro-tui --print --width 100 --height 40 testdata/wagon_wheel.cho
-CHORDPRO_TUI_FORCE_COLOR=1 go run ./cmd/chordpro-tui --print ... | less -R   # force truecolor when piped
+go run . --print --width 100 --height 40 testdata/wagon_wheel.cho
+CHORDPRO_TUI_FORCE_COLOR=1 go run . --print ... | less -R   # force truecolor when piped
 
 scripts/gallery.sh [--bg] [song.cho]   # render a song in every theme back-to-back
 
@@ -37,7 +37,7 @@ Data flows one way: **parse → Song model → render → TUI** (or **→ pdf �
 - `internal/pdf/` — one-page PDF export (go-pdf/fpdf, core fonts only, monochrome). All layout math is in "em" units (multiples of the body font size) measured at scale 1 in `layout.go`; `fit` then picks the column count that maximizes the body size for the page, and `pdf.go` draws it. `preset.go` holds device page sizes (device presets = the device's logical point resolution, so aspect ratio matches the screen). Entry point: `Export(song, Options, io.Writer)`.
 - `internal/config/` — optional `chordpro-tui.toml` settings: a hand-rolled flat-TOML parser (no dependency), `Default()`, `Marshal` (drives `--print-config`), and `Load` (searches `./` then the user config dir, or an explicit `--config` path). Display options resolve to `render.Tri` values in a `render.RenderOpts`; the fit renderer resolves `auto` by re-rendering leaner until the song fits (`internal/render/display.go`). Keep the zero value == "everything off" so a missing config changes nothing.
 - `internal/tui/` — the Bubbletea `Model` (view modes fit/scroll/sync, key handling, theme cycling, `$EDITOR` round-trip) and the fuzzy file picker (`o` key, folder browsing via `n`/`p`/`r`, ordered by the `sort-songs` config). Holds both `base` (untransposed) and `song` (transposed) so transpose is always re-derived from source.
-- `cmd/chordpro-tui/` — TUI flags (`--print-config`, `--config`, …), TTY detection (non-TTY or `--print` renders once to stdout), stdin/file/directory input resolution.
+- `main.go` (repo root, `package main`) — TUI flags (`--print-config`, `--config`, …), TTY detection (non-TTY or `--print` renders once to stdout), stdin/file/directory input resolution. It lives at the root, not under `cmd/`, so `go install github.com/monomadic/chordpro-tui@latest` works without a path suffix.
 - `cmd/chordpro-pdf/` — exporter flags (preset/orientation/custom page size), output-path derivation.
 
 Parser/model changes usually ripple: a new directive touches `parser.go`, possibly `model.go`, then rendering in `render.go`/`header.go`, and the README's "Supported ChordPro" section.

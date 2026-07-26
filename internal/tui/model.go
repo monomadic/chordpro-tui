@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"chordpro-tui/internal/chordpro"
-	"chordpro-tui/internal/config"
-	"chordpro-tui/internal/render"
+	"github.com/monomadic/chordpro-tui/internal/chordpro"
+	"github.com/monomadic/chordpro-tui/internal/config"
+	"github.com/monomadic/chordpro-tui/internal/render"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

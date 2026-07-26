@@ -3,7 +3,7 @@ package tui
 import (
 	"strings"
 
-	"chordpro-tui/internal/render"
+	"github.com/monomadic/chordpro-tui/internal/render"
 
 	"github.com/charmbracelet/lipgloss"
 )
