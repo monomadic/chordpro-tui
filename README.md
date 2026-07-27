@@ -1,22 +1,41 @@
 # chordpro-tui
 
-A colorful, modern terminal renderer for [ChordPro](https://www.chordpro.org/)
-song files. It lays a whole song out to fill **one screen** — chords stacked
-over lyrics, a centered title, metadata pills — flowing into balanced
-newspaper columns so nothing scrolls off the page when it doesn't have to.
+A colorful terminal renderer for [ChordPro](https://www.chordpro.org/) song
+files that fits the **whole song on one screen**.
 
-It also has a **teleprompter mode** that auto-scrolls at the song's tempo.
+Most chord apps assume you'll scroll — they paginate long charts or crawl the
+lyrics past you on a timer, and mid-song is exactly when you don't have a hand
+free. chordpro-tui starts from the opposite idea: lay the entire song out at
+once — chords stacked over lyrics, flowing into balanced newspaper columns —
+so you glance instead of scroll. Auto-scroll views exist for when you want
+them, but they're the fallback, not the premise.
 
-![two-column fit layout](#) <!-- run it to see -->
+![The fit view: a whole song on one screen, chords over lyrics, three balanced columns](assets/fit-view.jpg)
 
-## Why Go + Charm
+## Features
 
-The renderer is built on [Lipgloss](https://github.com/charmbracelet/lipgloss)
-for styling and layout and [Bubbletea](https://github.com/charmbracelet/bubbletea)
-for the interactive loop. That combination is the lowest-friction path to a
-genuinely good-looking TUI: truecolor styles, rounded borders, and column
-composition come for free, and the same render code powers both the static
-"fit to page" view and the animated scroll view.
+- **One-screen fit layout** — the song is split into section blocks and packed
+  into however many columns fill your terminal best; short songs are centered,
+  long ones flow wider. No pagination, no scrolling mid-song.
+- **Teleprompter & player modes** — when you do want motion: auto-scroll at a
+  tempo-derived speed, or pace the whole song against its `{duration}` with a
+  play/pause progress bar.
+- **Live transpose** — `[` / `]` shift every chord (and the key) a semitone,
+  with lead-sheet accidental spelling; `w` saves a transposed copy of the file
+  with formatting preserved.
+- **Chord-shape sheet** — press `c` for fingering diagrams of every chord in
+  the song; `{define}` directives override the built-in shapes.
+- **Fuzzy song finder** — browse a whole folder of charts with title/artist
+  filtering and metadata columns, or jump with next/previous/random keys.
+- **9 themes** — Mocha, Tokyo Night, Gruvbox, Dracula, Nord, plus a neon set
+  (Synthwave, Cyberpunk, Laser, Vapor), with an optional full background fill.
+- **`$EDITOR` round-trip** — hit `e`, edit the chart, and it reloads in place
+  with your transpose and theme intact.
+- **One-page PDF export** — a sibling `chordpro-pdf` binary renders the same
+  fit layout to a device-sized PDF (iPad, iPhone, Mac, A4/Letter), chord
+  diagrams included.
+- Foldable tablature panels, TOML config with tri-state auto-hide options,
+  stdin/pipe support, and a `--print` mode for scripting and screenshots.
 
 ## Install
 
@@ -107,12 +126,16 @@ bottom-right corner.
   song. Reads a `{duration: mm:ss}` directive (defaults to 3:30, adjustable with
   `+`/`-`); `space` plays/pauses and a progress bar shows elapsed / total.
 
+![Player mode: the song scrolls to land on the last line as the progress bar completes](assets/player-mode.png)
+
 Tab (`{start_of_tab}`) sections are drawn as a dark inset panel — a filled
 near-black block with the section label as its title bar — so tablature reads
 apart from the lyrics. `T` folds those sections away in any view, so a chart
 with long tablature blocks collapses to just its chords and lyrics; press `T`
 again to bring them back. It overrides `collapse-tablature-sections` in both
 directions, so `T` unfolds tabs that the config folds by default.
+
+![Synthwave theme with a themed background fill and a tablature inset panel](assets/synthwave-fit.png)
 
 ### Transpose & themes
 
@@ -138,9 +161,20 @@ default background, the whole screen is painted with the theme's background
 color, with chord and metadata pills still standing out on top. Best with a
 truecolor terminal.
 
+![Four of the nine themes: Gruvbox, Dracula, Nord, Cyberpunk](assets/themes-strip.png)
+
 To preview every theme at once, run `scripts/gallery.sh` (add `--bg` to see the
 backgrounds, pass a song path to use your own): it renders the song in each
 theme back-to-back with colors forced on.
+
+### Chord-shape sheet
+
+`c` opens a fingering-diagram sheet for every chord the current song uses —
+open/muted string markers included — and it follows the live transpose, so
+`[` / `]` re-spell the shapes on the spot. `{define}` directives in the song
+override the built-in shapes, and a `{tuning}` directive is shown alongside.
+
+![The chord sheet: fingering diagrams for every chord in the song](assets/chord-sheet.png)
 
 ### Opening, browsing & editing songs
 
@@ -155,6 +189,8 @@ metadata columns drop off, narrowest first, on small terminals) and file
 extensions are hidden. Type to filter by **title or artist** (matched characters
 are highlighted in whichever column they fall), `↑`/`↓` to move, `enter` to open,
 `esc` to cancel.
+
+![The fuzzy song finder: title, artist, key and capo columns over a whole folder of charts](assets/song-picker.jpg)
 
 Without opening the finder you can also jump straight between songs in the
 folder: `n` / `p` for next / previous (wrapping) and `r` for a random pick. The
@@ -203,6 +239,10 @@ markers, starting-fret notes, and finger numbers), italic section labels, and
 chords stacked bold over the lyrics. The song always lands on **exactly one
 page**: short songs get large centered type (capped at `--max-font`), long
 songs flow into balanced columns at smaller sizes.
+
+<p align="center">
+  <img src="assets/pdf-export.png" width="55%" alt="A one-page PDF export: title block, chord fingering diagrams, tab intro, and two lyric columns">
+</p>
 
 ```sh
 chordpro-pdf song.cho                             # → "song (iPad Mini).pdf"
@@ -288,4 +328,3 @@ testdata/                    example songs
 
 The palette lives in `internal/render/theme.go` (default: Catppuccin Mocha).
 Swap the `Palette` values to reskin every style at once.
-```
