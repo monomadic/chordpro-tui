@@ -124,6 +124,9 @@ func uniqueChords(song *chordpro.Song) []string {
 // open/muted marker row, and a fretboard grid. Every block is the same height
 // so they tile cleanly into a grid.
 func chordDiagram(s chords.Shape, th *Theme) string {
+	// The song view's chord pill background would read as a faint band against
+	// the bg fill here, so the whole sheet is styled foreground-only.
+	name := th.Chord.Background(lipgloss.NoColor{})
 	dot := th.Chord.Foreground(th.P.Chord).Background(lipgloss.NoColor{}).Bold(true)
 	grid := th.Muted
 	open := th.Section
@@ -132,7 +135,7 @@ func chordDiagram(s chords.Shape, th *Theme) string {
 	var b strings.Builder
 
 	// Name, centered over the 11-cell-wide grid.
-	b.WriteString(center(th.Chord.Render(" "+s.Name+" "), 11))
+	b.WriteString(center(name.Render(s.Name), 11))
 	b.WriteByte('\n')
 
 	// Marker row: × muted, ○ open, blank when the string is fretted.

@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/monomadic/chordpro-tui/internal/chordpro"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 func chartSong() *chordpro.Song {
@@ -35,6 +38,20 @@ func TestRenderChordSheet(t *testing.T) {
 	// fretboard top borders.
 	if got := strings.Count(plain, "┍"); got != 3 {
 		t.Errorf("expected 3 diagrams, found %d", got)
+	}
+}
+
+func TestRenderChordSheetNoBackgrounds(t *testing.T) {
+	// The sheet must style foreground only: any element carrying its own
+	// background (like the song view's chord pill) shows up as a faint band
+	// once ApplyBackground tints the screen in --bg mode.
+	old := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(old)
+
+	out := RenderChordSheet(chartSong(), 80, 30, DefaultTheme())
+	if strings.Contains(out, "\x1b[48;") || strings.Contains(out, ";48;") {
+		t.Errorf("chord sheet sets a background color of its own:\n%q", out)
 	}
 }
 
