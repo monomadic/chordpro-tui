@@ -22,9 +22,10 @@ func TestApplyBackground(t *testing.T) {
 			t.Errorf("line width = %d, want 4 (padded)", lipgloss.Width(ln))
 		}
 	}
-	// A reset inside the content re-asserts the background after it.
+	// A reset inside the content re-asserts the background in the same SGR
+	// sequence, so no cell is ever left on the terminal's default background.
 	tinted := ApplyBackground("\x1b[0mx", 2, lipgloss.Color("#000000"))
-	if strings.Count(tinted, "\x1b[48;2;0;0;0m") < 2 {
+	if !strings.Contains(tinted, "\x1b[0;48;2;0;0;0m") {
 		t.Errorf("background not re-asserted after inner reset: %q", tinted)
 	}
 	// An unparseable color is a no-op.

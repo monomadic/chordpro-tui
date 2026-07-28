@@ -571,13 +571,16 @@ func ApplyBackground(screen string, w int, bg lipgloss.Color) string {
 		return screen
 	}
 	set := fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b)
+	// Fold the re-assert into the reset's own SGR sequence so no cell mid-line
+	// is ever painted with the terminal's default background.
+	resetSet := fmt.Sprintf("\x1b[0;48;2;%d;%d;%dm", r, g, b)
 	const reset = "\x1b[0m"
 	lines := strings.Split(screen, "\n")
 	for i, ln := range lines {
 		if pad := w - lipgloss.Width(ln); pad > 0 {
 			ln += strings.Repeat(" ", pad)
 		}
-		lines[i] = set + strings.ReplaceAll(ln, reset, reset+set) + reset
+		lines[i] = set + strings.ReplaceAll(ln, reset, resetSet) + reset
 	}
 	return strings.Join(lines, "\n")
 }
