@@ -21,6 +21,7 @@ import (
 
 func main() {
 	var (
+		finderMode  = flag.Bool("chordfinder", false, "start the interactive chord finder (no song required)")
 		printMode   = flag.Bool("print", false, "render once to stdout and exit (no interactive TUI)")
 		printConfig = flag.Bool("print-config", false, "print the default chordpro-tui.toml to stdout and exit")
 		initConfig  = flag.Bool("init-config", false, "write the default config to your config dir and exit")
@@ -62,7 +63,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "chordpro-tui:", err)
 		os.Exit(1)
 	}
-	song, err := readSong(inputPath)
+	song := &chordpro.Song{}
+	if !*finderMode || inputPath != "" {
+		song, err = readSong(inputPath)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "chordpro-tui:", err)
 		os.Exit(1)
@@ -95,7 +99,14 @@ func main() {
 		if h == 0 {
 			h = 40
 		}
-		out := render.RenderWith(song, w, h, theme, cfg.RenderOpts())
+		out := ""
+		if *finderMode {
+			model := tui.New(song, tui.Options{StartFinder: true, ThemeName: *themeName})
+			updated, _ := model.Update(tea.WindowSizeMsg{Width: w, Height: h})
+			out = updated.View()
+		} else {
+			out = render.RenderWith(song, w, h, theme, cfg.RenderOpts())
+		}
 		if *bg {
 			out = render.ApplyBackground(out, w, theme.P.Bg)
 		}
@@ -106,6 +117,7 @@ func main() {
 	p := tea.NewProgram(
 		tui.New(song, tui.Options{
 			StartScroll: *scroll,
+			StartFinder: *finderMode,
 			Transpose:   *transpose,
 			ThemeName:   *themeName,
 			Path:        inputPath,
@@ -170,6 +182,7 @@ Usage:
   chordpro-tui < song.cho
 
 Flags:
+  --chordfinder    find chord names by selecting notes (no song required)
   --print          render once to stdout and exit
   --print-config   print the default chordpro-tui.toml and exit
   --init-config    write the default config to ~/.config/chordpro-tui/
@@ -192,6 +205,7 @@ Keys (interactive):
   r            load a random song in the folder
   v            cycle view: fit → scroll → player
   T            fold (hide) tab sections
+  F            interactive chordfinder
   c            chord-shape sheet for the current song
   t            cycle color theme
   B            toggle themed background fill

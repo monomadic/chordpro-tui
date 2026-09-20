@@ -35,6 +35,7 @@ var helpGroups = []helpGroup{
 	}},
 	{"Music", []helpRow{
 		{"c", "chord-shape sheet"},
+		{"F", "interactive chordfinder"},
 		{"[ ]", "transpose down / up"},
 		{"0", "reset transpose"},
 	}},

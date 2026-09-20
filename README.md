@@ -328,3 +328,38 @@ testdata/                    example songs
 
 The palette lives in `internal/render/theme.go` (default: Catppuccin Mocha).
 Swap the `Palette` values to reskin every style at once.
+
+### Chordfinder
+
+Run `chordpro-tui --chordfinder` without a song, or press **F** from a song
+view. This screen uses the same four-fret diagrams as the chord sheet and
+identifies a shape in standard guitar tuning (low E → high E).
+
+- Click a fret to select it; click the same fret again to mute that string.
+  Selecting another fret replaces the previous note on that string.
+- Click the marker above a string or its nut to toggle open / muted.
+- Use arrows or `h j k l` to move the highlighted cursor, then Space or Enter
+  to toggle. `o` opens the selected string; `x` mutes it.
+- `[` / `]` move the four-fret window along frets 1–24. Notes outside the
+  window remain selected; the absolute **Frets** readout shows the full shape.
+- `0` clears the shape, `t` changes theme, and `B` toggles the background.
+- Esc or `F` returns to the song; `q` quits. Song playback pauses while the
+  finder is open and resumes its previous state when you leave.
+
+The screen shows the sounding notes, exact common-chord matches, inversions,
+and alternative names where applicable. Recognition covers major/minor,
+power, diminished, augmented, suspended, sixth, seventh, add9, and ninth
+chords with all their defining pitch classes present. Incomplete or unsupported
+sets display **No exact common chord match**; this does not mean they are
+musically invalid. The tuning is independent of the current song's tuning.
+Searching fingerings by name is not part of this first mode.
+
+For a reproducible screen preview (also useful to agents working on this UI):
+
+```sh
+go run . --chordfinder --print --width 80 --height 30
+```
+
+The interactive screen requires at least 40 columns × 23 rows. Mouse reporting
+is enabled only while chordfinder is open. Rendering and mouse hit testing
+share `finderOrigin`; keep them together when changing the layout.

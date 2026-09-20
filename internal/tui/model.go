@@ -71,7 +71,9 @@ type Model struct {
 	disp render.RenderOpts // config-derived display defaults (merged each render)
 	sort config.SortMode   // song-queue ordering
 
-	chords bool // showing the chord-shapes sheet overlay
+	finding bool
+	finder  finderState
+	chords  bool // showing the chord-shapes sheet overlay
 
 	// flash is a transient status message (e.g. "Saved …") shown on the bottom
 	// row until flashUntil passes.
@@ -81,6 +83,7 @@ type Model struct {
 
 // Options configure the initial view state.
 type Options struct {
+	StartFinder bool
 	StartScroll bool
 	Transpose   int
 	ThemeName   string
@@ -99,6 +102,8 @@ func New(song *chordpro.Song, opts Options) Model {
 	}
 	m := Model{
 		base:      song,
+		finding:   opts.StartFinder,
+		finder:    newFinder(),
 		themes:    themes,
 		tIdx:      tIdx,
 		theme:     themes[tIdx],
@@ -128,7 +133,12 @@ func clampTranspose(n int) int {
 	return n
 }
 
-func (m Model) Init() tea.Cmd { return tick() }
+func (m Model) Init() tea.Cmd {
+	if m.finding {
+		return tea.Batch(tick(), tea.EnableMouseCellMotion)
+	}
+	return tick()
+}
 
 func tick() tea.Cmd {
 	return tea.Tick(time.Second/fps, func(t time.Time) tea.Msg { return tickMsg(t) })
@@ -220,6 +230,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
+		if m.finding {
+			return m, tick()
+		}
 		switch m.mode {
 		case modeScroll:
 			if m.auto {
@@ -242,6 +255,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reloadKeepingState()
 		return m, nil
 
+	case tea.MouseMsg:
+		if m.finding {
+			return m.handleFinderMouse(msg)
+		}
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -249,6 +266,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.finding {
+		return m.handleFinderKey(msg)
+	}
 	if m.picking {
 		return m.handlePickerKey(msg)
 	}
@@ -267,6 +287,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c", "esc":
 		return m, tea.Quit
+
+	case "F":
+		m.finding = true
+		return m, tea.EnableMouseCellMotion
 
 	case "?": // keyboard-shortcut help
 		m.helping = true
@@ -638,6 +662,8 @@ func (m Model) View() string {
 	}
 	var out string
 	switch {
+	case m.finding:
+		out = m.finderView()
 	case m.picking:
 		out = m.pick.view(m.w, m.h, m.theme)
 	case m.helping:
@@ -653,7 +679,7 @@ func (m Model) View() string {
 	}
 	// A transient save/status message takes over the bottom row (not over the
 	// picker/help/chords overlays, which own the whole screen).
-	if msg := m.activeFlash(); msg != "" && !m.picking && !m.helping && !m.chords {
+	if msg := m.activeFlash(); msg != "" && !m.picking && !m.helping && !m.chords && !m.finding {
 		lines := strings.Split(out, "\n")
 		if n := len(lines); n > 0 {
 			lines[n-1] = lipgloss.PlaceHorizontal(m.w, lipgloss.Center, m.theme.Section.Render(msg))

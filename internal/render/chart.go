@@ -124,6 +124,12 @@ func uniqueChords(song *chordpro.Song) []string {
 // open/muted marker row, and a fretboard grid. Every block is the same height
 // so they tile cleanly into a grid.
 func chordDiagram(s chords.Shape, th *Theme) string {
+	return ChordDiagram(s, th, -1, -1)
+}
+
+// ChordDiagram shares the sheet geometry with the interactive finder. Cursor
+// row 0 is the open/muted marker; rows 1..4 are the displayed frets.
+func ChordDiagram(s chords.Shape, th *Theme, cursorString, cursorRow int) string {
 	// The song view's chord pill background would read as a faint band against
 	// the bg fill here, so the whole sheet is styled foreground-only.
 	name := th.Chord.Background(lipgloss.NoColor{})
@@ -143,13 +149,22 @@ func chordDiagram(s chords.Shape, th *Theme) string {
 		if i > 0 {
 			b.WriteByte(' ')
 		}
+		marker := muted
+		if i == cursorString && cursorRow == 0 {
+			marker = marker.Reverse(true)
+		}
 		switch {
 		case fretAt(s, i) < 0:
-			b.WriteString(muted.Render("×"))
+			b.WriteString(marker.Render("×"))
 		case fretAt(s, i) == 0:
-			b.WriteString(open.Render("○"))
+			b.WriteString(func() string {
+				if i == cursorString && cursorRow == 0 {
+					return marker.Render("○")
+				}
+				return open.Render("○")
+			}())
 		default:
-			b.WriteByte(' ')
+			b.WriteString(marker.Render(" "))
 		}
 	}
 	b.WriteByte('\n')
@@ -169,10 +184,15 @@ func chordDiagram(s chords.Shape, th *Theme) string {
 			if i > 0 {
 				line.WriteString(grid.Render(" "))
 			}
+			cellDot, cellGrid := dot, grid
+			if i == cursorString && row == cursorRow {
+				cellDot = dot.Reverse(true)
+				cellGrid = grid.Reverse(true)
+			}
 			if fretRowFor(s, i) == row {
-				line.WriteString(dot.Render("●"))
+				line.WriteString(cellDot.Render("●"))
 			} else {
-				line.WriteString(grid.Render("│"))
+				line.WriteString(cellGrid.Render("│"))
 			}
 		}
 		// Label the starting fret beside the first row of a moved diagram.
