@@ -7,6 +7,7 @@ import (
 	"github.com/monomadic/chordpro-tui/internal/chordpro"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 func mustParse(t *testing.T, src string) *chordpro.Song {
@@ -218,5 +219,72 @@ func TestSideSectionTitlesAutoFallsBack(t *testing.T) {
 		if strings.Contains(ln, "LABEL") && strings.Contains(ln, "abc") {
 			t.Errorf("label should not share a row with the body when it doesn't fit:\n%s", out)
 		}
+	}
+}
+
+func TestSuperQuality(t *testing.T) {
+	cases := map[string]string{
+		"A":      "A",
+		"Am":     "Aᵐ",
+		"F#m7b5": "F#ᵐ⁷ᵇ⁵",
+		"Bbmaj7": "Bbᵐᵃʲ⁷",
+		"Csus4":  "Cˢᵘˢ⁴",
+		"D/F#":   "D/F#",
+		"Am7/G":  "Aᵐ⁷/G",
+		"G7#9":   "G7#9", // '#' has no superscript: leave the quality alone
+		"N.C.":   "N.C.",
+	}
+	for in, want := range cases {
+		if got := superQuality(in); got != want {
+			t.Errorf("superQuality(%q) = %q, want %q", in, got, want)
+		}
+		if runeLen(superQuality(in)) != runeLen(in) {
+			t.Errorf("superQuality(%q) changed the width", in)
+		}
+	}
+}
+
+func TestInlineChordsOneRowPerLine(t *testing.T) {
+	song := mustParse(t, "{title: T}\n{sov: V}\n[G]Headin' down [D]south\n{eov}\n")
+	th := DefaultTheme()
+	stacked := buildBlocks(song, th, display{})
+	inline := buildBlocks(song, th, display{inlineChords: true})
+	if inline[0].height != stacked[0].height-1 {
+		t.Fatalf("inline chords should drop the chord row (stacked %d, inline %d)",
+			stacked[0].height, inline[0].height)
+	}
+	if got := stripANSI(inline[0].lines[len(inline[0].lines)-1]); !strings.Contains(got, "GHeadin' down Dsouth") {
+		t.Errorf("inline row = %q", got)
+	}
+}
+
+func TestInlineChordsAutoIsLastResort(t *testing.T) {
+	_, steps := resolveDisplay(RenderOpts{HideTitle: Auto, SectionTitleGap: Auto, InlineChords: Auto})
+	var d display
+	for _, s := range steps[:len(steps)-1] {
+		s(&d)
+	}
+	if d.inlineChords {
+		t.Fatal("inline chords applied before the last step")
+	}
+	steps[len(steps)-1](&d)
+	if !d.inlineChords {
+		t.Fatal("last auto step should inline the chords")
+	}
+}
+
+func TestPlainChordsDropBackground(t *testing.T) {
+	old := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(old)
+	song := mustParse(t, "{title: T}\n[G]a\n")
+	th := DefaultTheme()
+	chordRow := func(d display) string { return buildBlocks(song, th, d)[0].lines[0] }
+	// The pill background is a 48;2 (truecolor background) SGR sequence.
+	if pill := chordRow(display{}); !strings.Contains(pill, "48;") {
+		t.Fatalf("chords should have a pill background by default: %q", pill)
+	}
+	if plain := chordRow(display{plainChords: true}); strings.Contains(plain, "48;") {
+		t.Errorf("plain chords should have no background: %q", plain)
 	}
 }

@@ -37,6 +37,9 @@ type Config struct {
 	CollapsePageTitle         render.Tri // lay title, artist, and metadata on one line
 	CollapseSectionTitle      render.Tri // blank row above each section label
 	SideSectionTitles         render.Tri // section labels in a left margin, not above
+	SuperscriptChordQuality   bool       // raise chord qualities: Am7 → Aᵐ⁷
+	InlineChords              render.Tri // chords inline in the lyric row
+	PlainChords               bool       // chords without the pill background
 	SortSongs                 SortMode   // song-queue ordering
 }
 
@@ -56,6 +59,9 @@ func (c Config) RenderOpts() render.RenderOpts {
 		CollapsePageTitle: c.CollapsePageTitle,
 		SectionTitleGap:   c.CollapseSectionTitle,
 		SideSectionTitles: c.SideSectionTitles,
+		SuperscriptChords: c.SuperscriptChordQuality,
+		InlineChords:      c.InlineChords,
+		PlainChords:       c.PlainChords,
 	}
 }
 
@@ -200,6 +206,12 @@ func (c *Config) set(key, val string) error {
 		return setTri(&c.CollapseSectionTitle, key, val)
 	case "side-section-titles":
 		return setTri(&c.SideSectionTitles, key, val)
+	case "superscript-chord-quality":
+		return setBool(&c.SuperscriptChordQuality, key, val)
+	case "inline-chords":
+		return setTri(&c.InlineChords, key, val)
+	case "plain-chords":
+		return setBool(&c.PlainChords, key, val)
 	case "sort-songs":
 		return c.setSort(val)
 	default:

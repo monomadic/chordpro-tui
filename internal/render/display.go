@@ -24,6 +24,9 @@ type display struct {
 	hideSectionTitles bool // drop section labels (CHORUS, VERSE, …)
 	sectionTitleGap   bool // add a blank row above each labeled section
 	sideLabels        bool // put section labels in a left margin, not above
+	superQuality      bool // raise chord qualities: Am7 → Aᵐ⁷
+	inlineChords      bool // chords inline in the lyric row, not stacked above
+	plainChords       bool // drop the pill background behind chords
 }
 
 // resolveDisplay turns opts into a base display (auto options in their roomiest
@@ -34,6 +37,9 @@ func resolveDisplay(opts RenderOpts) (display, []func(*display)) {
 	d := display{
 		hideHeader:        opts.HideHeader,
 		hideSectionTitles: opts.HideSectionTitles,
+		superQuality:      opts.SuperscriptChords,
+		inlineChords:      opts.InlineChords == On,
+		plainChords:       opts.PlainChords,
 	}
 	// On settings apply immediately; Auto options start roomy and are trimmed by
 	// the ladder below.
@@ -82,6 +88,11 @@ func resolveDisplay(opts RenderOpts) (display, []func(*display)) {
 	}
 	if opts.HideTitle == Auto {
 		steps = append(steps, func(x *display) { x.hideTitle = true })
+	}
+	// Inline chords halve a lyric line's height but lose the chord-over-syllable
+	// alignment, so they're the very last resort for extra-long songs.
+	if opts.InlineChords == Auto {
+		steps = append(steps, func(x *display) { x.inlineChords = true })
 	}
 	return d, steps
 }

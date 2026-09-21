@@ -49,6 +49,9 @@ type RenderOpts struct {
 	CollapsePageTitle Tri  // lay title, artist, and metadata on one line
 	SectionTitleGap   Tri  // blank row above each section label
 	SideSectionTitles Tri  // section labels right-aligned in a left margin
+	SuperscriptChords bool // raise chord qualities: Am7 → Aᵐ⁷
+	InlineChords      Tri  // chords inline in the lyric row (auto: last resort)
+	PlainChords       bool // chords without the pill background
 }
 
 // ViewBadge renders the always-on view-mode indicator (e.g. "auto-scroll")
@@ -206,14 +209,14 @@ func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 				lines = append(lines, th.Section.Render(strings.ToUpper(sec.Label)))
 			}
 			for _, ln := range sec.Lines {
-				lines = append(lines, renderLine(ln, th)...)
+				lines = append(lines, renderLine(ln, th, d)...)
 			}
 			lines = tidyBlanks(lines)
 			// The first text row: a label above counts, otherwise it is the first
 			// lyric row, below any chord row that sits over it as supertext.
 			textRow := 0
 			if !(hasLabel && margin == 0) {
-				textRow = leadChordRows(sec)
+				textRow = leadChordRows(sec, d)
 			}
 			// Chorus lines carry a 2-column accent bar; give every other section a
 			// matching 2-space indent so all body text lines up under it.
@@ -269,7 +272,10 @@ func labelMargin(song *chordpro.Song) int {
 // leadChordRows is the number of chord rows rendered above a section's first
 // line of text: 1 when that line has chords over real lyrics, else 0 (a
 // chord-only line has no text row to sit beside).
-func leadChordRows(sec chordpro.Section) int {
+func leadChordRows(sec chordpro.Section, d display) int {
+	if d.inlineChords {
+		return 0
+	}
 	for _, ln := range sec.Lines {
 		if ln.IsBlank() {
 			continue
@@ -373,8 +379,9 @@ func tidyBlanks(lines []string) []string {
 }
 
 // renderLine produces the styled rows for a single source line: a chord row
-// stacked above the lyric row, a comment, or a verbatim tab row.
-func renderLine(ln chordpro.Line, th *Theme) []string {
+// stacked above the lyric row (or one row with the chords inline), a comment,
+// or a verbatim tab row.
+func renderLine(ln chordpro.Line, th *Theme, d display) []string {
 	if ln.Comment != "" {
 		return []string{th.Comment.Render(ln.Comment)}
 	}
@@ -382,22 +389,60 @@ func renderLine(ln chordpro.Line, th *Theme) []string {
 		return []string{""}
 	}
 
-	_, lyricRow := alignChords(ln.Segments)
+	segs := ln.Segments
+	if d.superQuality {
+		segs = make([]chordpro.Segment, len(ln.Segments))
+		for i, seg := range ln.Segments {
+			seg.Chord = superQuality(seg.Chord)
+			segs[i] = seg
+		}
+	}
+	chord := th.Chord
+	if d.plainChords {
+		chord = chord.UnsetBackground()
+	}
+	if d.inlineChords && ln.HasMarkers() {
+		return []string{inlineRow(segs, chord, th)}
+	}
+
+	_, lyricRow := alignChords(segs)
 	lyricRow = strings.TrimRight(lyricRow, " ")
 
 	var out []string
 	if ln.HasMarkers() {
-		out = append(out, styleChordRow(ln.Segments, th))
+		out = append(out, styleChordRow(segs, chord, th))
 	}
 	out = append(out, th.Lyric.Render(lyricRow))
 	return out
 }
 
-// styleChordRow builds the chord row with each chord individually styled, so
-// the background hugs each chord as a pill. Annotations ([*...]) sit in the same
+// inlineRow renders a line as a single row with each chord pill set directly
+// before the syllable it falls on. The chord color (and pill background, if
+// any) keeps it distinct from the lyric even mid-word; a chord with no lyric under it (a trailing chord or
+// a run of chords) gets a space so neighbours don't run together.
+func inlineRow(segs []chordpro.Segment, chord lipgloss.Style, th *Theme) string {
+	var b strings.Builder
+	for i, seg := range segs {
+		if mk, annot := seg.Marker(); mk != "" {
+			if annot {
+				b.WriteString(th.Annotation.Render(mk))
+			} else {
+				b.WriteString(chord.Render(mk))
+			}
+			if annot || (seg.Text == "" && i < len(segs)-1) {
+				b.WriteByte(' ')
+			}
+		}
+		b.WriteString(th.Lyric.Render(seg.Text))
+	}
+	return strings.TrimRight(b.String(), " ")
+}
+
+// styleChordRow builds the chord row with each chord individually styled in
+// chord, so any background hugs each chord as a pill. Annotations ([*...]) sit in the same
 // row but are rendered as plain italic text, not pills. It reproduces
 // alignChords' spacing exactly, so markers stay aligned with the lyric row.
-func styleChordRow(segs []chordpro.Segment, th *Theme) string {
+func styleChordRow(segs []chordpro.Segment, chord lipgloss.Style, th *Theme) string {
 	var b strings.Builder
 	chordVis, lyricVis := 0, 0
 	for _, seg := range segs {
@@ -409,7 +454,7 @@ func styleChordRow(segs []chordpro.Segment, th *Theme) string {
 			if annot {
 				b.WriteString(th.Annotation.Render(mk))
 			} else {
-				b.WriteString(th.Chord.Render(mk))
+				b.WriteString(chord.Render(mk))
 			}
 			chordVis += runeLen(mk)
 			b.WriteByte(' ') // unstyled separator between markers

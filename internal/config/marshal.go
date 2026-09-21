@@ -48,6 +48,13 @@ func (c Config) Marshal() string {
 		"Print section labels right-aligned to the left of their section instead",
 		"of on a row above it (true), never (false), or prefer the left margin but",
 		"fall back to labels above when the extra width stops the song fitting (auto).")
+	boolean("superscript-chord-quality", c.SuperscriptChordQuality,
+		"Raise chord qualities as superscript, keeping the root full size (Am7 → Aᵐ⁷).")
+	tri("inline-chords", triString(c.InlineChords),
+		"Set chords inline in the lyric row instead of on a row above it (true),",
+		"never (false), or only as a last resort when nothing else fits (auto).")
+	boolean("plain-chords", c.PlainChords,
+		"Draw chords in the theme's chord color only, without the pill background.")
 
 	b.WriteString("# Song-queue order for next/previous navigation and the open-song list.\n")
 	b.WriteString("# One of: none (directory order), name (by title), date (newest first).\n")

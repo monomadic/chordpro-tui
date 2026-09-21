@@ -23,6 +23,9 @@ func TestMarshalRoundTrips(t *testing.T) {
 		CollapsePageTitle:         render.Auto,
 		CollapseSectionTitle:      render.On,
 		SideSectionTitles:         render.Auto,
+		SuperscriptChordQuality:   true,
+		InlineChords:              render.Auto,
+		PlainChords:               true,
 		SortSongs:                 SortDate,
 	}
 	got, err := Parse(want.Marshal())
