@@ -188,28 +188,34 @@ func TestSideSectionTitlesSaveARow(t *testing.T) {
 	if above[0].height != side[0].height+1 {
 		t.Errorf("side label should save a row (above %d, side %d)", above[0].height, side[0].height)
 	}
-	// Label sits on the first row, right-aligned against the body: "  VERSE "
-	// for a margin of len("CHORUS")+1, so every block's body starts together.
-	first := stripANSI(side[0].lines[0])
-	if !strings.HasPrefix(first, " VERSE   ") {
-		t.Errorf("first row = %q, want right-aligned VERSE label", first)
+	// Label sits on the first lyric row (below its chords), right-aligned
+	// against the body: " VERSE " for a margin of len("CHORUS")+1, so every
+	// block's body starts together.
+	if first := stripANSI(side[0].lines[0]); !strings.HasPrefix(first, strings.Repeat(" ", 9)+"G") {
+		t.Errorf("chord row = %q, want it indented with no label", first)
 	}
-	chorus := stripANSI(side[1].lines[0])
-	if !strings.HasPrefix(chorus, "CHORUS "+chorusBar) {
-		t.Errorf("chorus row = %q, want label then chorus bar", chorus)
+	if text := stripANSI(side[0].lines[1]); !strings.HasPrefix(text, " VERSE   a") {
+		t.Errorf("lyric row = %q, want right-aligned VERSE label", text)
 	}
-	if !strings.HasPrefix(stripANSI(side[0].lines[1]), strings.Repeat(" ", 7)) {
-		t.Errorf("continuation rows should be indented by the label margin: %q", side[0].lines[1])
+	// The chorus bar also starts on the lyric row, leaving the chords above it.
+	if chords := stripANSI(side[1].lines[0]); strings.Contains(chords, chorusBar) {
+		t.Errorf("chorus chord row = %q, want no bar above the first lyric", chords)
+	}
+	if text := stripANSI(side[1].lines[1]); !strings.HasPrefix(text, "CHORUS "+chorusBar+"c") {
+		t.Errorf("chorus lyric row = %q, want label then chorus bar", text)
 	}
 }
 
 func TestSideSectionTitlesAutoFallsBack(t *testing.T) {
-	song := mustParse(t, "{title: T}\n{sov: A very long section name}\n[G]abc\n{eov}\n")
+	song := mustParse(t, "{title: T}\n{sov: Longer label}\n[G]abcdefgh\n{eov}\n")
 	th := DefaultTheme()
-	// Too narrow for the label margin plus the body: auto falls back to above.
+	// The label fits above the body but not beside it: auto falls back to above.
 	out := RenderWith(song, 22, 12, th, RenderOpts{SideSectionTitles: Auto})
+	if !strings.Contains(out, "LONGER LABEL") {
+		t.Fatalf("label missing:\n%s", out)
+	}
 	for _, ln := range strings.Split(stripANSI(out), "\n") {
-		if strings.Contains(ln, "NAME") && strings.Contains(ln, "abc") {
+		if strings.Contains(ln, "LABEL") && strings.Contains(ln, "abc") {
 			t.Errorf("label should not share a row with the body when it doesn't fit:\n%s", out)
 		}
 	}

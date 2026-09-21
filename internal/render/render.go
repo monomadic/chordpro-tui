@@ -90,12 +90,15 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 		// At each level the preferred label placement's render is kept unless
 		// a fallback placement fits where it doesn't.
 		var first string
-		for i, v := range labelVariants(opts, d) {
+		vs := labelVariants(opts, d)
+		for i, v := range vs {
 			s, truncated := renderFit(song, width, height, th, v, opts.ViewMode)
 			if i == 0 {
 				first = s
 			}
-			if !truncated {
+			// A side-label margin that pushes even one column past the screen
+			// edge doesn't fit either, when there's a placement left to try.
+			if !truncated && (i == len(vs)-1 || blocksFitWidth(song, th, v, width)) {
 				return s
 			}
 		}
@@ -206,10 +209,16 @@ func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 				lines = append(lines, renderLine(ln, th)...)
 			}
 			lines = tidyBlanks(lines)
+			// The first text row: a label above counts, otherwise it is the first
+			// lyric row, below any chord row that sits over it as supertext.
+			textRow := 0
+			if !(hasLabel && margin == 0) {
+				textRow = leadChordRows(sec)
+			}
 			// Chorus lines carry a 2-column accent bar; give every other section a
 			// matching 2-space indent so all body text lines up under it.
 			if sec.Kind == chordpro.KindChorus {
-				lines = decorateChorus(lines, th)
+				lines = decorateChorus(lines, textRow, th)
 			} else {
 				lines = indentLines(lines, 2)
 			}
@@ -218,7 +227,7 @@ func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 				if hasLabel {
 					label = strings.ToUpper(sec.Label)
 				}
-				lines = sideLabel(lines, label, margin, th)
+				lines = sideLabel(lines, label, textRow, margin, th)
 			}
 		}
 		// A blank row above a labeled section sets it off from the block above.
@@ -230,6 +239,12 @@ func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 		}
 	}
 	return blocks
+}
+
+// blocksFitWidth reports whether every section block, rendered with d, fits
+// within width as a single column.
+func blocksFitWidth(song *chordpro.Song, th *Theme, d display, width int) bool {
+	return maxWidth(buildBlocks(song, th, d))+colPad <= width
 }
 
 // labelMargin is the width of the left label margin: the widest shown non-tab
@@ -251,16 +266,35 @@ func labelMargin(song *chordpro.Song) int {
 	return w + 1
 }
 
+// leadChordRows is the number of chord rows rendered above a section's first
+// line of text: 1 when that line has chords over real lyrics, else 0 (a
+// chord-only line has no text row to sit beside).
+func leadChordRows(sec chordpro.Section) int {
+	for _, ln := range sec.Lines {
+		if ln.IsBlank() {
+			continue
+		}
+		if ln.Comment == "" && ln.HasMarkers() && strings.TrimSpace(ln.PlainText()) != "" {
+			return 1
+		}
+		return 0
+	}
+	return 0
+}
+
 // sideLabel prefixes each line with a margin columns wide, putting label
-// right-aligned against the body on the first row so it costs no extra row.
-func sideLabel(lines []string, label string, margin int, th *Theme) []string {
+// right-aligned against the body on row so it costs no extra row.
+func sideLabel(lines []string, label string, row, margin int, th *Theme) []string {
 	if len(lines) == 0 && label != "" {
 		lines = []string{""}
+	}
+	if row >= len(lines) {
+		row = 0
 	}
 	blank := strings.Repeat(" ", margin)
 	out := make([]string, len(lines))
 	for i, l := range lines {
-		if i == 0 && label != "" {
+		if i == row && label != "" {
 			pad := strings.Repeat(" ", margin-1-runeLen(label))
 			out[i] = pad + th.Section.Render(label) + " " + l
 			continue
@@ -424,11 +458,18 @@ func indentLines(lines []string, n int) []string {
 	return out
 }
 
-// decorateChorus prefixes a colored accent bar to every line of a chorus block.
-func decorateChorus(lines []string, th *Theme) []string {
+// decorateChorus prefixes a colored accent bar to the lines of a chorus block,
+// starting at row start: rows above it (a chord row over the first lyric) get
+// a matching blank indent, so the chords float above the bar as supertext.
+func decorateChorus(lines []string, start int, th *Theme) []string {
 	bar := th.ChorusBar.Render(chorusBar)
+	blank := strings.Repeat(" ", runeLen(chorusBar))
 	out := make([]string, len(lines))
 	for i, l := range lines {
+		if i < start {
+			out[i] = blank + l
+			continue
+		}
 		out[i] = bar + l
 	}
 	return out
@@ -680,7 +721,7 @@ func RenderLongWith(song *chordpro.Song, width int, th *Theme, opts RenderOpts) 
 	vs := labelVariants(opts, d)
 	d = vs[len(vs)-1]
 	for _, v := range vs {
-		if maxWidth(buildBlocks(song, th, v))+colPad <= width {
+		if blocksFitWidth(song, th, v, width) {
 			d = v
 			break
 		}
