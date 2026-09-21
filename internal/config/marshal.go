@@ -44,6 +44,10 @@ func (c Config) Marshal() string {
 	tri("collapse-section-title", triString(c.CollapseSectionTitle),
 		"Add a blank row above each section label (true), never (false),",
 		"or drop it only when the layout is cramped (auto).")
+	tri("side-section-titles", triString(c.SideSectionTitles),
+		"Print section labels right-aligned to the left of their section instead",
+		"of on a row above it (true), never (false), or prefer the left margin but",
+		"fall back to labels above when the extra width stops the song fitting (auto).")
 
 	b.WriteString("# Song-queue order for next/previous navigation and the open-song list.\n")
 	b.WriteString("# One of: none (directory order), name (by title), date (newest first).\n")

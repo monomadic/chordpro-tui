@@ -36,6 +36,7 @@ type Config struct {
 	AutohideSectionTitles     bool       // drop section labels (CHORUS, VERSE, …)
 	CollapsePageTitle         render.Tri // lay title, artist, and metadata on one line
 	CollapseSectionTitle      render.Tri // blank row above each section label
+	SideSectionTitles         render.Tri // section labels in a left margin, not above
 	SortSongs                 SortMode   // song-queue ordering
 }
 
@@ -54,6 +55,7 @@ func (c Config) RenderOpts() render.RenderOpts {
 		HideSectionTitles: c.AutohideSectionTitles,
 		CollapsePageTitle: c.CollapsePageTitle,
 		SectionTitleGap:   c.CollapseSectionTitle,
+		SideSectionTitles: c.SideSectionTitles,
 	}
 }
 
@@ -196,6 +198,8 @@ func (c *Config) set(key, val string) error {
 		return setTri(&c.CollapsePageTitle, key, val)
 	case "collapse-section-title":
 		return setTri(&c.CollapseSectionTitle, key, val)
+	case "side-section-titles":
+		return setTri(&c.SideSectionTitles, key, val)
 	case "sort-songs":
 		return c.setSort(val)
 	default:

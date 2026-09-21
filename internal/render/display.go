@@ -23,6 +23,7 @@ type display struct {
 	hideTabs          bool // fold away tab (tablature) sections
 	hideSectionTitles bool // drop section labels (CHORUS, VERSE, …)
 	sectionTitleGap   bool // add a blank row above each labeled section
+	sideLabels        bool // put section labels in a left margin, not above
 }
 
 // resolveDisplay turns opts into a base display (auto options in their roomiest
@@ -53,6 +54,11 @@ func resolveDisplay(opts RenderOpts) (display, []func(*display)) {
 	if opts.CollapsePageTitle == On {
 		d.collapsePageTitle = true
 	}
+	// Auto side labels start on; RenderWith falls back to labels-above when the
+	// extra margin width costs the layout its fit (see labelVariants).
+	if opts.SideSectionTitles == On || opts.SideSectionTitles == Auto {
+		d.sideLabels = true
+	}
 	if opts.SectionTitleGap == On || opts.SectionTitleGap == Auto {
 		d.sectionTitleGap = true
 	}
@@ -78,4 +84,17 @@ func resolveDisplay(opts RenderOpts) (display, []func(*display)) {
 		steps = append(steps, func(x *display) { x.hideTitle = true })
 	}
 	return d, steps
+}
+
+// labelVariants lists the label placements to try for one fit pass, preferred
+// first. Side labels save a row per section but widen every block by the label
+// margin, which can cost a column; so with Auto the fit renderer tries them
+// first and falls back to labels-above only if that fits where they don't.
+func labelVariants(opts RenderOpts, d display) []display {
+	if opts.SideSectionTitles != Auto || !d.sideLabels {
+		return []display{d}
+	}
+	above := d
+	above.sideLabels = false
+	return []display{d, above}
 }

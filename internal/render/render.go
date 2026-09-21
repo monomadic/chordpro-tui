@@ -48,6 +48,7 @@ type RenderOpts struct {
 	HideSectionTitles bool // drop section labels (CHORUS, VERSE, …)
 	CollapsePageTitle Tri  // lay title, artist, and metadata on one line
 	SectionTitleGap   Tri  // blank row above each section label
+	SideSectionTitles Tri  // section labels right-aligned in a left margin
 }
 
 // ViewBadge renders the always-on view-mode indicator (e.g. "auto-scroll")
@@ -86,11 +87,19 @@ func RenderWith(song *chordpro.Song, width, height int, th *Theme, opts RenderOp
 		for i := 0; i < level; i++ {
 			steps[i](&d)
 		}
-		s, truncated := renderFit(song, width, height, th, d, opts.ViewMode)
-		out = s
-		if !truncated {
-			break
+		// At each level the preferred label placement's render is kept unless
+		// a fallback placement fits where it doesn't.
+		var first string
+		for i, v := range labelVariants(opts, d) {
+			s, truncated := renderFit(song, width, height, th, v, opts.ViewMode)
+			if i == 0 {
+				first = s
+			}
+			if !truncated {
+				return s
+			}
 		}
+		out = first
 	}
 	return out
 }
@@ -173,6 +182,10 @@ func renderFit(song *chordpro.Song, width, height int, th *Theme, d display, vie
 // buildBlocks turns each song section into a styled block, honouring the tab
 // fold, section-label, and section-gap choices in d.
 func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
+	margin := 0
+	if d.sideLabels && !d.hideSectionTitles {
+		margin = labelMargin(song)
+	}
 	var blocks []block
 	for _, sec := range song.Sections {
 		if d.hideTabs && sec.Kind == chordpro.KindTab {
@@ -181,10 +194,12 @@ func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 		hasLabel := sec.Label != "" && !d.hideSectionTitles
 		var lines []string
 		if sec.Kind == chordpro.KindTab {
-			// Tabs sit in their own dark panel instead of the usual styled rows.
+			// Tabs sit in their own dark panel instead of the usual styled rows;
+			// the label stays in the panel's title bar even with side labels.
 			lines = indentLines(tabPanel(sec, th, hasLabel), 2)
+			lines = indentLines(lines, margin)
 		} else {
-			if hasLabel {
+			if hasLabel && margin == 0 {
 				lines = append(lines, th.Section.Render(strings.ToUpper(sec.Label)))
 			}
 			for _, ln := range sec.Lines {
@@ -198,6 +213,13 @@ func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 			} else {
 				lines = indentLines(lines, 2)
 			}
+			if margin > 0 {
+				label := ""
+				if hasLabel {
+					label = strings.ToUpper(sec.Label)
+				}
+				lines = sideLabel(lines, label, margin, th)
+			}
 		}
 		// A blank row above a labeled section sets it off from the block above.
 		if d.sectionTitleGap && hasLabel && len(lines) > 0 {
@@ -208,6 +230,44 @@ func buildBlocks(song *chordpro.Song, th *Theme, d display) []block {
 		}
 	}
 	return blocks
+}
+
+// labelMargin is the width of the left label margin: the widest shown non-tab
+// label plus a one-column space. Every block gets the same margin so section
+// bodies line up down a column. Zero when no section has a side label.
+func labelMargin(song *chordpro.Song) int {
+	w := 0
+	for _, sec := range song.Sections {
+		if sec.Label == "" || sec.Kind == chordpro.KindTab {
+			continue
+		}
+		if x := runeLen(sec.Label); x > w {
+			w = x
+		}
+	}
+	if w == 0 {
+		return 0
+	}
+	return w + 1
+}
+
+// sideLabel prefixes each line with a margin columns wide, putting label
+// right-aligned against the body on the first row so it costs no extra row.
+func sideLabel(lines []string, label string, margin int, th *Theme) []string {
+	if len(lines) == 0 && label != "" {
+		lines = []string{""}
+	}
+	blank := strings.Repeat(" ", margin)
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		if i == 0 && label != "" {
+			pad := strings.Repeat(" ", margin-1-runeLen(label))
+			out[i] = pad + th.Section.Render(label) + " " + l
+			continue
+		}
+		out[i] = blank + l
+	}
+	return out
 }
 
 // tabPanel lays a tablature section out as a framed, dark-filled block of
@@ -616,6 +676,15 @@ func RenderLongWith(song *chordpro.Song, width int, th *Theme, opts RenderOpts) 
 	// A tall scroll has unlimited vertical room, so Auto options stay in their
 	// roomiest state (the base display, with no reduction steps applied).
 	d, _ := resolveDisplay(opts)
+	// Auto side labels hold only if the widened single column still fits.
+	vs := labelVariants(opts, d)
+	d = vs[len(vs)-1]
+	for _, v := range vs {
+		if maxWidth(buildBlocks(song, th, v))+colPad <= width {
+			d = v
+			break
+		}
+	}
 	// Center the body so the song sits in the middle of wide screens with
 	// margins either side; text inside each block stays left-aligned.
 	cols := packColumns(buildBlocks(song, th, d), width, 1<<30, 1) // huge cap => one column

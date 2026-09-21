@@ -225,6 +225,7 @@ the metadata pills drop, and only last the title itself.
 | `autohide-section-titles`     | true / false        | hide all section labels (CHORUS, VERSE, …)                          |
 | `collapse-page-title`         | true / false / auto | lay title, artist, and metadata out on one line                     |
 | `collapse-section-title`      | true / false / auto | blank row above each section label (`auto` drops it only if cramped) |
+| `side-section-titles`         | true / false / auto | labels right-aligned left of their section, saving a row each (`auto` falls back to above if the width no longer fits) |
 | `sort-songs`                  | none / name / date  | song-queue order: directory order, by title, or newest-first        |
 
 Config sets the defaults; the `h` (hide header) and `T` (fold tabs) keys still

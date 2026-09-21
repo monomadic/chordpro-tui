@@ -179,3 +179,38 @@ func TestTabPanelIsAPaddedRectangle(t *testing.T) {
 		t.Errorf("section label should head the panel, got %q", lines[1])
 	}
 }
+
+func TestSideSectionTitlesSaveARow(t *testing.T) {
+	song := mustParse(t, "{title: T}\n{sov: Verse}\n[G]a\nb\n{eov}\n{soc}\n[C]c\n{eoc}\n")
+	th := DefaultTheme()
+	above := buildBlocks(song, th, display{})
+	side := buildBlocks(song, th, display{sideLabels: true})
+	if above[0].height != side[0].height+1 {
+		t.Errorf("side label should save a row (above %d, side %d)", above[0].height, side[0].height)
+	}
+	// Label sits on the first row, right-aligned against the body: "  VERSE "
+	// for a margin of len("CHORUS")+1, so every block's body starts together.
+	first := stripANSI(side[0].lines[0])
+	if !strings.HasPrefix(first, " VERSE   ") {
+		t.Errorf("first row = %q, want right-aligned VERSE label", first)
+	}
+	chorus := stripANSI(side[1].lines[0])
+	if !strings.HasPrefix(chorus, "CHORUS "+chorusBar) {
+		t.Errorf("chorus row = %q, want label then chorus bar", chorus)
+	}
+	if !strings.HasPrefix(stripANSI(side[0].lines[1]), strings.Repeat(" ", 7)) {
+		t.Errorf("continuation rows should be indented by the label margin: %q", side[0].lines[1])
+	}
+}
+
+func TestSideSectionTitlesAutoFallsBack(t *testing.T) {
+	song := mustParse(t, "{title: T}\n{sov: A very long section name}\n[G]abc\n{eov}\n")
+	th := DefaultTheme()
+	// Too narrow for the label margin plus the body: auto falls back to above.
+	out := RenderWith(song, 22, 12, th, RenderOpts{SideSectionTitles: Auto})
+	for _, ln := range strings.Split(stripANSI(out), "\n") {
+		if strings.Contains(ln, "NAME") && strings.Contains(ln, "abc") {
+			t.Errorf("label should not share a row with the body when it doesn't fit:\n%s", out)
+		}
+	}
+}
